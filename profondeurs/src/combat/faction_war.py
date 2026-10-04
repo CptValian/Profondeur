@@ -25,7 +25,7 @@ def force_power(units) -> float:
 
 
 def defense_power(inv) -> float:
-    return force_power(inv.units) + tower_mod.tower_power(inv.tower)
+    return force_power(inv.units) + tower_mod.tower_power(inv.tower) + getattr(inv, "tower_hp_permanent_bonus", 0.0) / 20.0
 
 
 @dataclass
@@ -64,7 +64,7 @@ class BattleReport:
 
 
 def start_battle(att_inv, def_inv, hero=None, rng=None, record_events=False) -> BattleSim:
-    return BattleSim(dict(att_inv.units), dict(def_inv.units), dict(def_inv.tower), hero=hero, rng=rng, record_events=record_events)
+    return BattleSim(dict(att_inv.units), dict(def_inv.units), dict(def_inv.tower), hero=hero, rng=rng, record_events=record_events, tower_hp_permanent_bonus=getattr(def_inv, "tower_hp_permanent_bonus", 0.0))
 
 
 def finalize_battle(sim: BattleSim, att_name, att_inv, def_name, def_inv, def_items=None, hero=None, rng=None) -> BattleReport:
@@ -87,6 +87,8 @@ def finalize_battle(sim: BattleSim, att_name, att_inv, def_name, def_inv, def_it
         def_inv.gold -= loot
         att_inv.gold += loot
         att_inv.war_wins += 1
+        # Se faire piller et détruire son donjon renforce ses PV de manière permanente
+        def_inv.tower_hp_permanent_bonus += 50.0
         # un équipement du vaincu, tiré au hasard, perd un palier (le niveau d'XP est conservé)
         candidates = [it for it in (def_items or []) if it.tier > 0]
         if candidates:

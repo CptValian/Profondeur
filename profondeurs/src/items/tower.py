@@ -30,14 +30,14 @@ def default_levels() -> dict:
     return {k: 0 for k in TRACKS}
 
 
-def stats(levels: dict) -> dict:
+def stats(levels: dict, permanent_hp_bonus: float = 0.0) -> dict:
     lv = {k: levels.get(k, 0) for k in TRACKS}
     return {
         "damage": 6.0 * (1 + 0.25 * lv["damage"]),     # par flèche
         "speed": 0.4 + 0.06 * lv["speed"],              # salves par seconde
         "range": 240.0 + 22.0 * lv["range"],            # unités du champ de bataille
         "arrows": 1 + lv["arrows"],                     # flèches par salve
-        "hp": config.TOWER_HP * (1 + 0.25 * lv["hp"]),  # points de vie du donjon
+        "hp": config.TOWER_HP * (1 + 0.25 * lv["hp"]) + permanent_hp_bonus,  # points de vie du donjon
         "supreme": lv["supreme"],
     }
 
