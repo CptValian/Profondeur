@@ -244,6 +244,18 @@ class TestGameFeatures(unittest.TestCase):
         defend_sim = faction_war.start_battle(att_inv, def_inv, hero=None)
         self.assertFalse(any(u.is_hero for u in defend_sim.units))
 
+    def test_extreme_difficulty_ai(self):
+        from src.ai.competitor import create_competitors
+        diffs = ["Extrême"] * 15
+        competitors = create_competitors(diffs)
+        ai = competitors[0]
+        self.assertEqual(ai.difficulty, "Extrême")
+        self.assertAlmostEqual(ai.power_mult, 1.6)
+        self.assertAlmostEqual(ai.speed_mult, 1.45)
+
+    def test_monster_spawn_rate_reduced(self):
+        self.assertAlmostEqual(config.MONSTER_SPAWN_CHANCE, 0.04 / 3.0)
+
 
 if __name__ == "__main__":
     unittest.main()

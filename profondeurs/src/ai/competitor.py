@@ -152,6 +152,8 @@ class AIMiner:
         self.stones = StoneRegistry()    # même génération de pierres pour tous les mineurs
         self.artifacts = ArtifactCatalog()
         self.world = WorldGenerator(self.stones, self.artifacts, seed=2000 + seed_offset)
+        self.own_world = self.world
+        self.joint_grid_callback = None
         self.tool = Tool(tier=0)
         self.inventory = Inventory()
         self.state = AIState()
@@ -248,6 +250,12 @@ class AIMiner:
             if (row, col) == self.last_cell:
                 desirability -= 3.0
 
+            if self.difficulty == "Extrême":
+                if going_down:
+                    desirability += 2.5
+                else:
+                    desirability -= 1.5
+
             if self.rng.random() < self.artifact_focus * 0.4:
                 desirability += self.rng.uniform(0, 1.5)
 
@@ -259,8 +267,8 @@ class AIMiner:
     def _try_upgrade(self):
         cost = self.tool.upgrade_cost()
         if cost >= 0:
-            threshold = cost * (1 + self.upgrade_readiness)
-            if self.inventory.gold >= threshold or self.inventory.gold >= cost * 1.05:
+            threshold = cost * (1.01 if self.difficulty == "Extrême" else (1 + self.upgrade_readiness))
+            if self.inventory.gold >= threshold or self.inventory.gold >= cost * 1.01:
                 if self.inventory.spend_gold(cost):
                     self.tool.upgrade()
                     return
@@ -438,6 +446,8 @@ class AIMiner:
             dmg = self.mining_power * (1 + self.ledger.team_bonus(self.team, block.stone_id))
             broke = block.take_damage(dmg)
             if broke:
+                if self.joint_grid_callback:
+                    self.joint_grid_callback(self.team)
                 if self.stones.discover(block.stone_id):
                     self._claim_stone(block.stone_id)
                 self.inventory.add_resource(block.stone_id, block.resource_amount)

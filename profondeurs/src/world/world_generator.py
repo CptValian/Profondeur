@@ -57,7 +57,7 @@ class WorldGenerator:
 
         contains_monster = False
         if row > 5:
-            spawn_chance = min(config.MONSTER_SPAWN_CHANCE + row * 0.00006, 0.18)
+            spawn_chance = min(config.MONSTER_SPAWN_CHANCE + row * 0.00002, 0.06)
             if rng.random() < spawn_chance:
                 contains_monster = True
 

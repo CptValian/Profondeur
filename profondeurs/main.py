@@ -215,7 +215,25 @@ class Game:
         self.joint_grid_active = True
         self.joint_grid_time_left = 30.0
         self.joint_grid_points = {0: 0, 1: 0, 2: 0, 3: 0}
-        self.flash_message("ÉVÉNEMENT : GRILLE COMMUNE !", "Casse le plus de blocs en 30s. Seul le DERNIER COUP compte !", duration=4.0)
+
+        joint_row = self.player.row
+        self.player.col = 8
+
+        ai_cols = [c for c in range(config.GRID_COLS) if c != 8]
+        for i, ai in enumerate(self.competitors):
+            ai.state.row = joint_row
+            ai.state.col = ai_cols[i % len(ai_cols)]
+            ai.target_cell = None
+            if not hasattr(ai, "own_world") or ai.own_world is None:
+                ai.own_world = ai.world
+            ai.world = self.world
+            ai.joint_grid_callback = self._on_ai_joint_grid_break
+
+        self.flash_message("ÉVÉNEMENT : GRILLE COMMUNE !", "Téléportation sur la grille commune ! Seul le DERNIER COUP compte !", duration=4.0)
+
+    def _on_ai_joint_grid_break(self, team):
+        if self.joint_grid_active:
+            self.joint_grid_points[team] += 1
 
     def update_joint_grid_event(self, dt):
         self.joint_grid_time_left -= dt
@@ -223,12 +241,12 @@ class Game:
             self.end_joint_grid_event()
             return
 
-        for ai in self.competitors:
-            if random.random() < 0.8 * dt * getattr(ai, "speed_mult", 1.0):
-                self.joint_grid_points[ai.team] += 1
-
     def end_joint_grid_event(self):
         self.joint_grid_active = False
+        for ai in self.competitors:
+            if hasattr(ai, "own_world") and ai.own_world:
+                ai.world = ai.own_world
+            ai.joint_grid_callback = None
         total_gold = self.player.inventory.gold + sum(ai.inventory.gold for ai in self.competitors)
         ranked_teams = sorted(range(4), key=lambda t: self.joint_grid_points[t], reverse=True)
         rewards_pct = {0: 0.15, 1: 0.06, 2: 0.03, 3: 0.01}
@@ -526,7 +544,7 @@ class Game:
         earned = self.player.gain_gold(block_gold)
         if self.player.tool.add_xp(block.roll_xp(random) + self.player.block_xp_bonus):
             self.flash_message(f"Pioche niveau {self.player.tool.level} !",
-                               f"Dégâts {self.player.tool.power:.1f} · cadence {self.player.tool.speed:.1f}/s",
+                               f"Dégâts {self.player.tool.power:.2f} · cadence {self.player.tool.speed:.2f}/s",
                                duration=1.6)
         self.player.max_depth_reached = max(self.player.max_depth_reached, block.depth)
 
@@ -545,7 +563,7 @@ class Game:
 
         if block.contains_xp_stone:
             self.player.inventory.xp_stones += 1
-            self.flash_message("Pierre d'XP trouvée !", f"XP passive totale : {self.player.inventory.xp_stones * 0.8:.1f} XP/s", duration=2.5)
+            self.flash_message("Pierre d'XP trouvée !", f"XP passive totale : {self.player.inventory.xp_stones * 0.8:.2f} XP/s", duration=2.5)
 
         got_artifact = False
         if block.contains_artifact:
@@ -588,7 +606,7 @@ class Game:
             chance = self.artifacts.pity_chance(self.player.artifact_pity, self.player.bonus_artifact_luck,
                                                 self.player.new_artifact_flat)
             self.flash_message(f"Doublon : {adef.name}",
-                               f"Chance que le prochain artefact soit inédit : {chance * 100:.0f}%", duration=3.0)
+                               f"Chance que le prochain artefact soit inédit : {chance * 100:.2f}%", duration=3.0)
 
     def _free_artifact(self):
         """Niveau 14 : offre l'artefact de plus faible niveau (profondeur minimale) non encore obtenu."""
@@ -1140,6 +1158,8 @@ class Game:
                     self.ai_difficulties = ["Avancé"] * len(self.ai_difficulties)
                 elif key == "diff_all_difficile":
                     self.ai_difficulties = ["Difficile"] * len(self.ai_difficulties)
+                elif key == "diff_all_extreme":
+                    self.ai_difficulties = ["Extrême"] * len(self.ai_difficulties)
                 elif key == "btn_continue":
                     self.start_game(new=False)
                 elif key == "btn_newgame":
@@ -1227,7 +1247,7 @@ class Game:
                     cost = self.player.hero.gold_upgrade_cost()
                     if cost > 0 and self.player.hero.upgrade_gold(self.player):
                         self.flash_message(f"Héros amélioré : {self.player.hero.name}",
-                                           f"PV {self.player.hero.max_hp:.0f} · Dégâts {self.player.hero.attack_damage:.1f}", duration=2.5)
+                                           f"PV {self.player.hero.max_hp:.2f} · Dégâts {self.player.hero.attack_damage:.2f}", duration=2.5)
                     elif cost <= 0:
                         self.flash_message("Niveau d'or maximum atteint.")
                     else:
@@ -1422,7 +1442,7 @@ class Game:
             return
 
         self.renderer.draw_background(self.player.row, self.particles)
-        self.renderer.draw_grid(self.world, self.player, self.hover_cell, self.mining_cell, is_mining=self.is_mining_active)
+        self.renderer.draw_grid(self.world, self.player, self.hover_cell, self.mining_cell, is_mining=self.is_mining_active, competitors=self.competitors)
         self.particles.draw_particles(self.screen)
         self.renderer.draw_top_bar(self.player)
         now = self.session_time
