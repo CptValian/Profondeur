@@ -68,8 +68,13 @@ class TestGameFeatures(unittest.TestCase):
         game = Game()
         self.assertFalse(game.joint_grid_active)
 
+        main_world = game.world
+        orig_player_pos = (game.player.row, game.player.col)
+        orig_ai_pos = (game.competitors[0].state.row, game.competitors[0].state.col)
+
         game.start_joint_grid_event()
         self.assertTrue(game.joint_grid_active)
+        self.assertNotEqual(game.world, main_world)
         self.assertEqual(game.joint_grid_time_left, 30.0)
 
         block = game.world.get_block(0, 0)
@@ -81,6 +86,9 @@ class TestGameFeatures(unittest.TestCase):
         old_gold = game.player.inventory.gold
         game.end_joint_grid_event()
         self.assertFalse(game.joint_grid_active)
+        self.assertEqual(game.world, main_world)
+        self.assertEqual((game.player.row, game.player.col), orig_player_pos)
+        self.assertEqual((game.competitors[0].state.row, game.competitors[0].state.col), orig_ai_pos)
         self.assertGreaterEqual(game.player.inventory.gold, old_gold)
 
     def test_depth_boss_system(self):

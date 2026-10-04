@@ -147,6 +147,8 @@ class Game:
         self.joint_grid_active = False
         self.joint_grid_time_left = 0.0
         self.joint_grid_points = {0: 0, 1: 0, 2: 0, 3: 0}
+        self.saved_main_world = None
+        self.saved_player_pos = None
 
         self.war_log = []          # BattleReport
         self.war_cooldown = {}     # nom -> session_time jusqu'auquel il ne peut plus attaquer
@@ -181,8 +183,9 @@ class Game:
         self.auto_shift_dir = None
 
     def _save(self):
+        world_to_save = getattr(self, "saved_main_world", None) or self.world
         save_manager.save_game(self.player, self.stones, self.artifacts,
-                               self.competitors, world=self.world, ledger=self.ledger, audio=self.audio,
+                               self.competitors, world=world_to_save, ledger=self.ledger, audio=self.audio,
                                faction_banks=self.faction_banks)
         self.has_save = True
 
@@ -216,17 +219,23 @@ class Game:
         self.joint_grid_time_left = 30.0
         self.joint_grid_points = {0: 0, 1: 0, 2: 0, 3: 0}
 
+        self.saved_main_world = self.world
+        self.joint_world = WorldGenerator(self.stones, self.artifacts, seed=random.randint(10000, 999999))
+        self.world = self.joint_world
+
+        self.saved_player_pos = (self.player.row, self.player.col)
         joint_row = self.player.row
         self.player.col = 8
 
         ai_cols = [c for c in range(config.GRID_COLS) if c != 8]
         for i, ai in enumerate(self.competitors):
+            ai.saved_pos = (ai.state.row, ai.state.col)
             ai.state.row = joint_row
             ai.state.col = ai_cols[i % len(ai_cols)]
             ai.target_cell = None
             if not hasattr(ai, "own_world") or ai.own_world is None:
                 ai.own_world = ai.world
-            ai.world = self.world
+            ai.world = self.joint_world
             ai.joint_grid_callback = self._on_ai_joint_grid_break
 
         self.flash_message("ÉVÉNEMENT : GRILLE COMMUNE !", "Téléportation sur la grille commune ! Seul le DERNIER COUP compte !", duration=4.0)
@@ -243,9 +252,20 @@ class Game:
 
     def end_joint_grid_event(self):
         self.joint_grid_active = False
+        if hasattr(self, "saved_main_world") and self.saved_main_world:
+            self.world = self.saved_main_world
+            self.saved_main_world = None
+        if hasattr(self, "saved_player_pos") and self.saved_player_pos:
+            self.player.row, self.player.col = self.saved_player_pos
+            self.saved_player_pos = None
+
         for ai in self.competitors:
+            if hasattr(ai, "saved_pos") and ai.saved_pos:
+                ai.state.row, ai.state.col = ai.saved_pos
+                ai.saved_pos = None
             if hasattr(ai, "own_world") and ai.own_world:
                 ai.world = ai.own_world
+            ai.target_cell = None
             ai.joint_grid_callback = None
         total_gold = self.player.inventory.gold + sum(ai.inventory.gold for ai in self.competitors)
         ranked_teams = sorted(range(4), key=lambda t: self.joint_grid_points[t], reverse=True)

@@ -342,8 +342,8 @@ class Renderer:
                 cy = self.grid_y + c_row_screen * size + size // 2
                 self._draw_companion_on_grid(cx, cy, player.companion)
 
-        # bots concourants
-        if competitors:
+        # bots concourants (visibles uniquement lors de l'événement de la grille commune)
+        if competitors and getattr(self, "joint_grid_info", {}).get("active", False):
             for ai in competitors:
                 ai_row_screen = ai.state.row - top_row
                 if 0 <= ai_row_screen < self.visible_rows:
