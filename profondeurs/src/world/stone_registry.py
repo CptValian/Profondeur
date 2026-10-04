@@ -144,7 +144,12 @@ class StoneRegistry:
         # avec la difficulté réellement rencontrée à ce stade, même si la
         # pierre continue d'exister plus profondément ; la rareté, elle,
         # suit toujours le centre de la plage.
-        base_hardness = 0.45 + start * 0.010 + rng.uniform(0, 0.6)
+        if k == 0:
+            base_hardness = 1.0 / config.BLOCK_HEALTH_SCALE
+        elif k == 1:
+            base_hardness = 3.0 / config.BLOCK_HEALTH_SCALE
+        else:
+            base_hardness = 0.45 + start * 0.010 + rng.uniform(0, 0.6)
         rarity_roll = rng.random() + center * 0.0006
         if rarity_roll > 0.985:
             rarity = "Mythique"
@@ -162,7 +167,7 @@ class StoneRegistry:
         hue_base = (k * 47 + rng.randint(0, 20)) % 360
         base_color = _hsv_to_rgb(hue_base / 360.0, rng.uniform(0.28, 0.55), rng.uniform(0.35, 0.62))
         return StoneType(
-            stone_id=stone_id, base_color=base_color, hardness=round(base_hardness, 2),
+            stone_id=stone_id, base_color=base_color, hardness=round(base_hardness, 4),
             rarity=rarity, depth_tier=k, texture_seed=rng.randint(0, 999999),
         )
 

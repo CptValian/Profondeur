@@ -249,6 +249,9 @@ class Renderer:
                 if block.contains_artifact and player.artifacts_unlocked:
                     pygame.draw.circle(self.screen, (255, 220, 70), rect.center, 6)
                     pygame.draw.circle(self.screen, (120, 90, 10), rect.center, 6, 1)
+                if block.contains_xp_stone:
+                    pygame.draw.circle(self.screen, (180, 120, 255), rect.center, 6)
+                    pygame.draw.circle(self.screen, (255, 255, 255), rect.center, 3)
 
                 # surbrillance si survolé/accessible
                 is_reachable = self._is_adjacent(player, row, col)
@@ -269,6 +272,14 @@ class Renderer:
             if top_row + r_screen < asc_limit:
                 self.screen.blit(self._ascent_veil, (self.grid_x, self.grid_y + r_screen * size))
 
+        # compagnon de mine
+        if player.has_companion:
+            c_row_screen = player.companion.row - top_row
+            if 0 <= c_row_screen < self.visible_rows:
+                cx = self.grid_x + player.companion.col * size + size // 2
+                cy = self.grid_y + c_row_screen * size + size // 2
+                self._draw_companion_on_grid(cx, cy, player.companion)
+
         # joueur
         p_row_screen = player.row - top_row
         px = self.grid_x + player.col * size + size // 2
@@ -276,6 +287,13 @@ class Renderer:
         self._draw_player(px, py, player, mining_cell is not None)
         self.last_top_row = top_row
         return top_row
+
+    def _draw_companion_on_grid(self, cx, cy, companion):
+        color = companion.color
+        pygame.draw.circle(self.screen, (20, 20, 25), (cx + 2, cy + 3), 11)
+        pygame.draw.circle(self.screen, color, (cx, cy), 11)
+        pygame.draw.circle(self.screen, (255, 255, 255), (cx, cy), 11, 2)
+        pygame.draw.circle(self.screen, (255, 220, 100), (cx, cy - 2), 3)
 
     def _is_adjacent(self, player, row, col):
         if row == player.row and col == player.col:
@@ -499,7 +517,7 @@ class Renderer:
     # ------------------------------------------------------------------
     def _draw_tab_equipment(self, rect, player):
         sub_tabs = [("helmet", "Casque"), ("armor", "Armure"), ("aura", "Aura"), ("amulet", "Amulette"),
-                    ("gauntlet", "Gantelet")]
+                    ("gauntlet", "Gantelet"), ("companion", "Compagnon")]
         if not hasattr(self, "active_equip"):
             self.active_equip = "helmet"
         sw = rect.width // len(sub_tabs)
@@ -510,6 +528,45 @@ class Renderer:
             txt = self.font_tiny.render(label, True, (240, 230, 210) if active else (150, 145, 165))
             self.screen.blit(txt, (r.centerx - txt.get_width() // 2, r.centery - txt.get_height() // 2))
             self.rects[f"subtab_{key}"] = r
+
+        content = pygame.Rect(rect.x, rect.y + 44, rect.width, rect.height - 44)
+
+        if self.active_equip == "companion":
+            comp = player.companion
+            if not player.has_companion:
+                self._draw_lock_notice(content, content.y, config.LEVEL_COMPANION, "Le compagnon de mine", player.level)
+                return
+            self._draw_equip_icon(content.centerx, content.y + 58, comp, "companion")
+            y = content.y + 126
+            name = self.font_big.render(comp.name, True, (240, 230, 210))
+            self.screen.blit(name, (content.centerx - name.get_width() // 2, y)); y += 32
+            lvl_txt = self.font_tiny.render(f"Niveau XP {comp.level}/{comp.max_level} · Palier or {comp.gold_tier}/{comp.max_gold_tier}", True, (160, 200, 170))
+            self.screen.blit(lvl_txt, (content.centerx - lvl_txt.get_width() // 2, y)); y += 18
+            self._draw_xp_bar(content.x, y, content.width, comp)
+            y += 22
+            p_txt = self.font_small.render(f"Dégâts par coup : {comp.mining_power:.1f}", True, (220, 220, 220))
+            self.screen.blit(p_txt, (content.x, y)); y += 22
+            s_txt = self.font_small.render(f"Cadence de minage : {comp.hits_per_second:.2f} coups/s", True, (220, 220, 220))
+            self.screen.blit(s_txt, (content.x, y)); y += 22
+            desc = "Mine automatiquement la roche sur la grille en suivant le joueur (même hors-écran). " \
+                   "Ne combat pas les monstres mais récolte artefacts et composants."
+            for line in self._wrap_text(desc, self.font_tiny, content.width):
+                self.screen.blit(self.font_tiny.render(line, True, (150, 145, 165)), (content.x, y)); y += 16
+            y += 12
+            cost = comp.gold_upgrade_cost()
+            btn_rect = pygame.Rect(content.x, y, content.width, 46)
+            if cost > 0:
+                can = player.inventory.gold >= cost
+                pygame.draw.rect(self.screen, (70, 130, 80) if can else (60, 45, 45), btn_rect, border_radius=8)
+                pygame.draw.rect(self.screen, (255, 255, 255), btn_rect, 1, border_radius=8)
+                bt = self.font_small.render(f"Améliorer vitesse (Or) — {cost} or", True, (240, 240, 240))
+                self.screen.blit(bt, (btn_rect.centerx - bt.get_width() // 2, btn_rect.centery - bt.get_height() // 2))
+                self.rects["btn_upgrade_companion"] = btn_rect
+            else:
+                pygame.draw.rect(self.screen, (60, 55, 30), btn_rect, border_radius=8)
+                bt = self.font_small.render("Palier d'or maximum atteint !", True, (255, 210, 90))
+                self.screen.blit(bt, (btn_rect.centerx - bt.get_width() // 2, btn_rect.centery - bt.get_height() // 2))
+            return
 
         equip = {"helmet": player.helmet, "armor": player.armor,
                  "aura": player.aura, "amulet": player.amulet, "gauntlet": player.gauntlet}[self.active_equip]
@@ -648,6 +705,11 @@ class Renderer:
             pygame.draw.polygon(self.screen, c, pts)
             pygame.draw.polygon(self.screen, _shade(c, 1.5), pts, 2)
             pygame.draw.circle(self.screen, _shade(c, 1.6), (x, y), max(3, r // 3))
+        elif kind == "companion":
+            c = equip.color
+            pygame.draw.circle(self.screen, c, (x, y), 32)
+            pygame.draw.circle(self.screen, _shade(c, 1.4), (x, y), 32, 3)
+            pygame.draw.circle(self.screen, (255, 230, 120), (x, y - 8), 8)
 
     def _draw_tab_stones(self, rect, stones):
         title = self.font.render("Pierres", True, (230, 225, 210))
@@ -797,7 +859,7 @@ class Renderer:
 
     def _draw_tab_workshop(self, rect, player):
         inv = player.inventory
-        subs = [("comp", "Composants"), ("troops", "Troupes"), ("tower", "Donjon"), ("war", "Guerre")]
+        subs = [("comp", "Composants"), ("troops", "Troupes"), ("hero", "Héros"), ("tower", "Donjon"), ("war", "Guerre")]
         sw = rect.width // len(subs)
         for i, (key, label) in enumerate(subs):
             r = pygame.Rect(rect.x + i * sw, rect.y, sw - 4, 28)
@@ -871,6 +933,10 @@ class Renderer:
                 self._draw_workshop_war(rect, player, y)
             return
 
+        if self.active_workshop == "hero":
+            self._draw_workshop_hero(rect, player, y)
+            return
+
         if self.active_workshop == "tower":
             self._draw_workshop_tower(rect, player, y)
             return
@@ -930,6 +996,50 @@ class Renderer:
             self._reg(f"craft_{recipe.recipe_id}", btn)
             y += row_h
         self._scroll_end(y + off - y0)
+
+    def _draw_workshop_hero(self, rect, player, y):
+        hero = player.hero
+        if not player.has_hero:
+            self._draw_lock_notice(rect, y, config.LEVEL_HERO, "Le Héros de guerre", player.level)
+            return
+
+        t = self.font.render(hero.name, True, (240, 230, 210))
+        self.screen.blit(t, (rect.x, y)); y += 28
+        lvl_txt = self.font_tiny.render(f"Niveau XP {hero.level}/{hero.max_level} · Palier Or {hero.gold_tier}/{hero.max_gold_tier}", True, (160, 200, 170))
+        self.screen.blit(lvl_txt, (rect.x, y)); y += 18
+        self._draw_xp_bar(rect.x, y, rect.width, hero)
+        y += 24
+
+        stats_lines = [
+            f"PV max : {hero.max_hp:.0f}",
+            f"Dégâts d'attaque : {hero.attack_damage:.1f}",
+            f"Armure (Défense) : {hero.armor:.1f}",
+            f"Cadence d'attaque : 1 coup toutes les {hero.attack_interval:.2f} s",
+            f"Multiplicateur XP : x{hero.xp_multiplier:.2f}",
+        ]
+        for line in stats_lines:
+            self.screen.blit(self.font_small.render(line, True, (220, 220, 220)), (rect.x, y)); y += 22
+        y += 8
+
+        desc = "Participe à toutes les attaques lancées contre d'autres joueurs (ne défend jamais). " \
+               "Gagne de l'XP en infligeant et en subissant des dégâts lors de ces batailles."
+        for line in self._wrap_text(desc, self.font_tiny, rect.width):
+            self.screen.blit(self.font_tiny.render(line, True, (150, 145, 165)), (rect.x, y)); y += 16
+        y += 14
+
+        cost = hero.gold_upgrade_cost()
+        btn_rect = pygame.Rect(rect.x, y, rect.width, 42)
+        if cost > 0:
+            can = player.inventory.gold >= cost
+            pygame.draw.rect(self.screen, (70, 130, 80) if can else (60, 45, 45), btn_rect, border_radius=8)
+            pygame.draw.rect(self.screen, (255, 255, 255), btn_rect, 1, border_radius=8)
+            bt = self.font_small.render(f"Améliorer Héros (Or) — {cost} or", True, (240, 240, 240))
+            self.screen.blit(bt, (btn_rect.centerx - bt.get_width() // 2, btn_rect.centery - bt.get_height() // 2))
+            self.rects["btn_upgrade_hero"] = btn_rect
+        else:
+            pygame.draw.rect(self.screen, (60, 55, 30), btn_rect, border_radius=8)
+            bt = self.font_small.render("Palier d'or maximum atteint !", True, (255, 210, 90))
+            self.screen.blit(bt, (btn_rect.centerx - bt.get_width() // 2, btn_rect.centery - bt.get_height() // 2))
 
     def _draw_workshop_tower(self, rect, player, y):
         inv = player.inventory
@@ -1079,6 +1189,7 @@ class Renderer:
             f"Or possédé : {int(player.inventory.gold)}",
             f"Ressources minées : {player.inventory.total_resources()}",
             f"Pierres découvertes : {len(self.stones.all_discovered())}",
+            f"Pierres d'XP possédées : {player.inventory.xp_stones} (+{player.inventory.xp_stones * 0.8:.1f} XP/s)",
             f"Artefacts trouvés : {len(self.artifacts.found)}/{len(self.artifacts.defs)}",
             f"Puissance de minage : {player.mining_power:.1f}  (dont +{player.level_damage_bonus:.1f} de niveau)",
             f"Dégâts en combat : {player.mining_power + player.combat_bonus:.1f}",

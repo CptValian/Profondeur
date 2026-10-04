@@ -348,6 +348,10 @@ class Game:
         if perks.get("haste_on_break"):
             self.haste_until = time.time() + 3.0
 
+        if block.contains_xp_stone:
+            self.player.inventory.xp_stones += 1
+            self.flash_message("Pierre d'XP trouvée !", f"XP passive totale : {self.player.inventory.xp_stones * 0.8:.1f} XP/s", duration=2.5)
+
         got_artifact = False
         if block.contains_artifact:
             artifact_id, self.player.artifact_pity = self.artifacts.resolve_drop(
@@ -485,7 +489,8 @@ class Game:
             return
         self.war_cooldown["Toi"] = self.session_time + config.WAR_ATTACK_COOLDOWN
         self.war_shield[target.name] = self.session_time + config.WAR_TARGET_SHIELD
-        sim = faction_war.start_battle(inv, target.inventory, record_events=True)
+        hero_arg = self.player.hero if self.player.has_hero else None
+        sim = faction_war.start_battle(inv, target.inventory, hero=hero_arg, record_events=True)
         self.war_ctx = {"att": "Toi", "def": target.name, "role": "att"}
         self._open_war_scene(WarScene(sim, "Tes troupes", f"{target.name} (donjon d'archer)",
                                       (255, 214, 150), target.color, player_role="att"))
@@ -503,8 +508,9 @@ class Game:
         if self.war_scene is None or self.war_scene_report is not None:
             return
         ctx = self.war_ctx
+        hero_arg = self.player.hero if (ctx.get("role") == "att" and self.player.has_hero) else None
         rep = faction_war.finalize_battle(self.war_scene.sim, ctx["att"], self._inventory_of(ctx["att"]),
-                                          ctx["def"], self._inventory_of(ctx["def"]), self._items_of(ctx["def"]))
+                                          ctx["def"], self._inventory_of(ctx["def"]), self._items_of(ctx["def"]), hero=hero_arg)
         self.player.clamp_health()
         self.war_scene_report = rep
         self.war_scene.report = rep
@@ -960,10 +966,29 @@ class Game:
                 if key.startswith("craft_") and self.state == GameState.EXPLORING:
                     self.craft_unit(key[len("craft_"):])
                     return
+                if key == "btn_upgrade_hero" and self.state == GameState.EXPLORING:
+                    cost = self.player.hero.gold_upgrade_cost()
+                    if cost > 0 and self.player.hero.upgrade_gold(self.player):
+                        self.flash_message(f"Héros amélioré : {self.player.hero.name}",
+                                           f"PV {self.player.hero.max_hp:.0f} · Dégâts {self.player.hero.attack_damage:.1f}", duration=2.5)
+                    elif cost <= 0:
+                        self.flash_message("Niveau d'or maximum atteint.")
+                    else:
+                        self.flash_message("Pas assez d'or.", f"Il faut {cost} or.")
+                    return
                 if key.startswith("btn_upgrade_") and self.state == GameState.EXPLORING:
                     attr = key[len("btn_upgrade_"):]
                     if attr in ("tool", "helmet", "armor", "aura", "amulet", "gauntlet"):
                         self.try_upgrade(getattr(self.player, attr))
+                    elif attr == "companion":
+                        cost = self.player.companion.gold_upgrade_cost()
+                        if cost > 0 and self.player.companion.upgrade_gold(self.player):
+                            self.flash_message(f"Compagnon amélioré : {self.player.companion.name}",
+                                               f"Cadence : {self.player.companion.hits_per_second:.2f} coups/s", duration=2.5)
+                        elif cost <= 0:
+                            self.flash_message("Niveau d'or maximum atteint.")
+                        else:
+                            self.flash_message("Pas assez d'or.", f"Il faut {cost} or.")
                     return
                 if key == "btn_flee" and self.state == GameState.COMBAT:
                     self.combat_flee()
@@ -1009,6 +1034,10 @@ class Game:
 
         if self.player.alive:
             self.player.passive_regen(dt)
+            if self.player.has_companion:
+                msgs = self.player.companion.tick(dt, self.player, self.world, self.ledger, self.stones, self.artifacts)
+                for msg in msgs:
+                    self.flash_message(msg, duration=2.2)
 
         if not self.player.alive and self.state != GameState.GAME_OVER:
             self.state = GameState.GAME_OVER

@@ -68,12 +68,12 @@ LEVEL_UNLOCK_TEXT = {
     12: "Flèches par salve améliorables",
     13: "+0,5 dégât par coup",
     14: "Artefact le plus faible non obtenu offert",
-    15: "Compagnon de mine débloqué (prochain patch)",
+    15: "Compagnon de mine débloqué",
     16: "+0,5 dégât par coup",
     17: "+4% de chance d'artefact inédit (permanent)",
     18: "XP de l'armure x1,5 (permanent)",
     19: "+0,5 dégât par coup",
-    20: "Héros débloqué (prochain patch)",
+    20: "Héros débloqué",
     21: "+0,5 dégât par coup",
     22: "XP de l'amulette x1,2 (permanent)",
     23: "+1 or par roche cassée",
@@ -117,7 +117,7 @@ TOOL_UPGRADE_COST_GROWTH = 1.28   # la pioche a 40 paliers : une croissance plus
 TOOL_MAX_LEVEL = 100
 TOOL_XP_BASE = 200            # XP pour passer du niveau 1 au niveau 2
 TOOL_XP_EXPONENT = 1.6        # XP requise = BASE * niveau ** EXPONENT
-TOOL_XP_PER_DAMAGE = 0.25     # XP gagnée par point de dégât infligé aux blocs
+TOOL_XP_PER_DAMAGE = 0.35     # XP gagnée par point de dégât infligé aux blocs
 TOOL_LEVEL_POWER_BONUS = 0.035  # +3,5 % de dégâts par niveau
 TOOL_LEVEL_SPEED_BONUS = 0.008  # +0,8 % de cadence par niveau
 TOOL_LEVEL_FLAT_POWER_BONUS = 0.5 # +0,5 dégâts plats par niveau
@@ -289,7 +289,7 @@ WAR_AI_INTERVAL = 30.0        # les IA envisagent une attaque toutes les X secon
 WAR_WIN_SCORE = 25            # points de score par victoire (attaque réussie ou défense réussie)
 
 # --- Valeur des blocs : or et XP proportionnels à la difficulté (points de vie du bloc) ---
-GOLD_PER_BLOCK_HP = 0.18        # or moyen = HP de base du bloc x ce facteur (les blocs d'artefact ne donnent pas d'or)
+GOLD_PER_BLOCK_HP = 0.28        # or moyen = HP de base du bloc x ce facteur (les blocs d'artefact ne donnent pas d'or)
 BLOCK_VALUE_RANDOM = (0.7, 1.3)  # petit aléa autour de la moyenne (moyenne = 1)
 XP_BLOCK_RANDOM = (0.8, 1.2)
 

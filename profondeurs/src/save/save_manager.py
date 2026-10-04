@@ -29,6 +29,7 @@ def _inv_extra_to_dict(inv):
         "units": dict(inv.units),
         "tower": dict(inv.tower),
         "war_wins": inv.war_wins,
+        "xp_stones": inv.xp_stones,
     }
 
 
@@ -40,6 +41,7 @@ def _inv_extra_from_dict(inv, d):
     inv.units.update({k: v for k, v in d.get("units", {}).items() if k in crafting.RECIPES_BY_ID})
     inv.tower.update({k: v for k, v in d.get("tower", {}).items() if k in inv.tower})
     inv.war_wins = d.get("war_wins", 0)
+    inv.xp_stones = d.get("xp_stones", 0)
 
 
 def _ai_to_dict(ai):
@@ -130,6 +132,18 @@ def save_game(player, stone_registry, artifact_catalog, competitive_ai, competit
         "aura": _eq_to_dict(player.aura),
         "amulet": _eq_to_dict(player.amulet),
         "gauntlet": _eq_to_dict(player.gauntlet),
+        "companion": {
+            "gold_tier": player.companion.gold_tier,
+            "level": player.companion.level,
+            "xp": player.companion.xp,
+            "row": player.companion.row,
+            "col": player.companion.col,
+        },
+        "hero": {
+            "gold_tier": player.hero.gold_tier,
+            "level": player.hero.level,
+            "xp": player.hero.xp,
+        },
         "level": player.level,
         "xp": player.xp,
     }
@@ -187,6 +201,20 @@ def load_game(player, stone_registry, artifact_catalog, competitive_ai, competit
                            ("amulet", config.EQUIP_MAX_LEVEL), ("gauntlet", config.EQUIP_MAX_LEVEL)):
         if key in p:
             _eq_from_dict(getattr(player, key), p[key], max_level)
+
+    if "companion" in p:
+        cmp = p["companion"]
+        player.companion.gold_tier = max(0, min(player.companion.max_gold_tier, cmp.get("gold_tier", 0)))
+        player.companion.level = max(1, min(player.companion.max_level, cmp.get("level", 1)))
+        player.companion.xp = cmp.get("xp", 0.0)
+        player.companion.row = cmp.get("row", player.row)
+        player.companion.col = cmp.get("col", player.col)
+
+    if "hero" in p:
+        hr = p["hero"]
+        player.hero.gold_tier = max(0, min(player.hero.max_gold_tier, hr.get("gold_tier", 0)))
+        player.hero.level = max(1, min(player.hero.max_level, hr.get("level", 1)))
+        player.hero.xp = hr.get("xp", 0.0)
 
     if "level" in p:
         player.level = max(1, min(config.PLAYER_MAX_LEVEL, p["level"]))

@@ -61,6 +61,9 @@ class WorldGenerator:
             if rng.random() < spawn_chance:
                 contains_monster = True
 
+        xp_stone_chance = min(0.01, (1.0 / 3000.0) + row * 0.000002)
+        contains_xp_stone = rng.random() < xp_stone_chance
+
         return Block(
             stone_id=stone.stone_id,
             hardness=stone.hardness,
@@ -68,4 +71,5 @@ class WorldGenerator:
             resource_amount=rng.randint(1, 3),
             contains_artifact=artifact_id,
             contains_monster=contains_monster,
+            contains_xp_stone=contains_xp_stone,
         )

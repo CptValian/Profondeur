@@ -7,6 +7,8 @@ from src.items.artifact import artifact_effects
 from src.items.tool import Tool
 from src.items.equipment import Helmet, Armor, Aura, Amulet, Gauntlet
 from src.items.inventory import Inventory
+from src.entities.companion import MiningCompanion
+from src.entities.hero import Hero
 
 
 class Player:
@@ -27,6 +29,8 @@ class Player:
         self.amulet = Amulet(tier=0)
         self.gauntlet = Gauntlet(tier=0)   # dégâts bonus contre les monstres (XP en combat uniquement)
         self.inventory = Inventory()
+        self.companion = MiningCompanion()
+        self.hero = Hero()
         self.max_depth_reached = 0
         # bonus cumulés venant des artefacts
         self.bonus_mining_power = 0.0
@@ -101,11 +105,11 @@ class Player:
 
     @property
     def has_companion(self) -> bool:
-        return self.level >= config.LEVEL_COMPANION      # fonctionnalité à venir
+        return self.level >= config.LEVEL_COMPANION
 
     @property
     def has_hero(self) -> bool:
-        return self.level >= config.LEVEL_HERO           # fonctionnalité à venir
+        return self.level >= config.LEVEL_HERO
 
     def tower_track_unlocked(self, key: str) -> bool:
         return self.level >= config.TOWER_TRACK_UNLOCK.get(key, 10)
@@ -205,9 +209,12 @@ class Player:
     def passive_regen(self, dt: float):
         """Régénération passive lente : casque + amulette, hors combat comme en combat.
         L'amulette (et seulement elle) gagne de l'XP proportionnellement aux PV
-        qu'elle a réellement permis de récupérer."""
+        qu'elle a réellement permis de récupérer.
+        Génère également de l'XP passive pour le niveau principal grâce aux pierres d'XP."""
         if not self.alive:
             return
+        if self.inventory.xp_stones > 0:
+            self.gain_player_xp(dt * self.inventory.xp_stones * 0.8)
         helmet_amt = self.helmet.effective_regen * dt
         amulet_amt = self.amulet.effective_regen * dt
         total = helmet_amt + amulet_amt
