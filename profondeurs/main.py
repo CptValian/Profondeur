@@ -37,6 +37,7 @@ from src.ui.particles import ParticleSystem
 from src.ui.war_scene import WarScene
 from src.ai.competitor import create_competitors
 from src.save import save_manager
+from src.audio_manager import AudioManager
 
 
 class GameState:
@@ -105,6 +106,8 @@ class Game:
         self.mining_cell = None
         self.mouse_down = False
         self.last_hit_time = 0.0
+        self.alt_dir = -1             # -1 = vers la gauche (droite à gauche), 1 = vers la droite
+        self.is_mining_active = False # True si le mineur est en train de miner (souris, Maj + direction, Alt)
 
         self.last_frame_time = time.time()
         self.haste_until = 0.0
@@ -115,6 +118,7 @@ class Game:
 
     # ------------------------------------------------------------------
     def _new_session(self, load_existing: bool):
+        self.audio = AudioManager()
         self.stones = StoneRegistry()
         self.ledger = StoneLedger()   # noms de pierres et bonus de faction, communs à tous les mineurs
         self.artifacts = ArtifactCatalog()
@@ -125,6 +129,7 @@ class Game:
         self.renderer.stones = self.stones
         self.renderer.ledger = self.ledger
         self.renderer.artifacts = self.artifacts
+        self.renderer.audio = self.audio
         self.renderer._texture_cache = {}
         self.particles = ParticleSystem(self.renderer.main_w, self.screen.get_height())
 
@@ -150,7 +155,7 @@ class Game:
 
         if load_existing:
             save_manager.load_game(self.player, self.stones, self.artifacts, self.competitive_ai,
-                                   self.competitors, world=self.world, ledger=self.ledger)
+                                   self.competitors, world=self.world, ledger=self.ledger, audio=self.audio)
 
         self.pending_stone = None
         self.current_monster = None
@@ -161,7 +166,7 @@ class Game:
 
     def _save(self):
         save_manager.save_game(self.player, self.stones, self.artifacts, self.competitive_ai,
-                               self.competitors, world=self.world, ledger=self.ledger)
+                               self.competitors, world=self.world, ledger=self.ledger, audio=self.audio)
         self.has_save = True
 
     def _saved_or_current_difficulties(self):
@@ -238,8 +243,8 @@ class Game:
         return True
 
     def _update_held_direction(self, now):
-        """Maintenir Z/Q/S/D : mine en continu dans cette direction, puis avance
-        et enchaîne sur le bloc suivant dans la même direction (tunnel)."""
+        """Maintenir Z/Q/S/D ou Flèches (avec ou sans Maj) : mine en continu dans cette
+        direction, puis avance et enchaîne sur le bloc suivant dans la même direction."""
         if not self.held_dirs or self.state != GameState.EXPLORING:
             return
         drow, dcol = self.held_dirs[-1]
@@ -261,6 +266,53 @@ class Game:
             self.start_combat(block)
             return
 
+        self.is_mining_active = True
+        if now - self.last_hit_time >= self._attack_interval(now):
+            self.last_hit_time = now
+            self.apply_hit(target_row, target_col)
+
+    def _update_alt_mining(self, now):
+        """Mouvement serpentin en maintenant Alt : va-et-vient (de droite à gauche puis gauche à droite),
+        en descendant d'un niveau dès qu'un mur ou bord est atteint."""
+        if self.state != GameState.EXPLORING:
+            return
+        target_col = self.player.col + self.alt_dir
+        # Si bord de grille atteint ou chemin horizontal bloqué vers le haut/bord :
+        if target_col < 0 or target_col >= config.GRID_COLS:
+            # Descendre d'un niveau
+            down_row = self.player.row + 1
+            if down_row < 0 or self._ascent_blocked(down_row):
+                return
+            down_block = self.world.get_block(down_row, self.player.col)
+            if down_block.is_empty:
+                if self.try_move_zqsd(1, 0):
+                    self.alt_dir = -self.alt_dir  # Inverse la direction une fois descendu
+                    self.last_hit_time = 0.0
+            else:
+                if down_block.contains_monster:
+                    self.start_combat(down_block)
+                    return
+                self.is_mining_active = True
+                if now - self.last_hit_time >= self._attack_interval(now):
+                    self.last_hit_time = now
+                    self.apply_hit(down_row, self.player.col)
+                    if self.world.get_block(down_row, self.player.col).is_empty:
+                        self.alt_dir = -self.alt_dir
+            return
+
+        # Déplacement/minage horizontal dans la direction actuelle
+        target_row = self.player.row
+        block = self.world.get_block(target_row, target_col)
+        if block.is_empty:
+            self.try_move_zqsd(0, self.alt_dir)
+            self.last_hit_time = 0.0
+            return
+
+        if block.contains_monster:
+            self.start_combat(block)
+            return
+
+        self.is_mining_active = True
         if now - self.last_hit_time >= self._attack_interval(now):
             self.last_hit_time = now
             self.apply_hit(target_row, target_col)
@@ -324,8 +376,11 @@ class Game:
         stone = self.stones.get_by_id(block.stone_id)
         self.particles.spawn_break(px, py, stone.base_color)
 
+        self.audio.play_pickaxe_hit(block.hardness)
+
         first_discovery = self.stones.discover(block.stone_id)
         self.player.inventory.add_resource(block.stone_id, block.resource_amount)
+        self.player.inventory.stone_fragments += block.max_health
         # or et XP : en moyenne proportionnels à la difficulté du bloc (petit aléa) ; pas d'or sur les pierres d'artefact
         block_gold = block.roll_gold(random) + self.player.block_gold_bonus
         earned = self.player.gain_gold(block_gold)
@@ -865,16 +920,28 @@ class Game:
                     self.try_upgrade(self.player.tool)
                 elif event.key == pygame.K_g:
                     self.show_chart = not self.show_chart
-            if event.key in (pygame.K_z, pygame.K_q, pygame.K_s, pygame.K_d) and self.state == GameState.EXPLORING:
-                d = {pygame.K_z: (-1, 0), pygame.K_s: (1, 0), pygame.K_q: (0, -1), pygame.K_d: (0, 1)}[event.key]
+            dir_map = {
+                pygame.K_z: (-1, 0), pygame.K_UP: (-1, 0),
+                pygame.K_s: (1, 0), pygame.K_DOWN: (1, 0),
+                pygame.K_q: (0, -1), pygame.K_LEFT: (0, -1),
+                pygame.K_d: (0, 1), pygame.K_RIGHT: (0, 1),
+            }
+            if event.key in dir_map and self.state == GameState.EXPLORING:
+                d = dir_map[event.key]
                 if d not in self.held_dirs:
                     self.held_dirs.append(d)
                 self.last_hit_time = 0.0
             if self.state == GameState.COMBAT and event.key == pygame.K_f:
                 self.combat_flee()
 
-        if event.type == pygame.KEYUP and event.key in (pygame.K_z, pygame.K_q, pygame.K_s, pygame.K_d):
-            d = {pygame.K_z: (-1, 0), pygame.K_s: (1, 0), pygame.K_q: (0, -1), pygame.K_d: (0, 1)}[event.key]
+        dir_map = {
+            pygame.K_z: (-1, 0), pygame.K_UP: (-1, 0),
+            pygame.K_s: (1, 0), pygame.K_DOWN: (1, 0),
+            pygame.K_q: (0, -1), pygame.K_LEFT: (0, -1),
+            pygame.K_d: (0, 1), pygame.K_RIGHT: (0, 1),
+        }
+        if event.type == pygame.KEYUP and event.key in dir_map:
+            d = dir_map[event.key]
             if d in self.held_dirs:
                 self.held_dirs.remove(d)
 
@@ -966,6 +1033,21 @@ class Game:
                 if key.startswith("craft_") and self.state == GameState.EXPLORING:
                     self.craft_unit(key[len("craft_"):])
                     return
+                if key == "btn_toggle_music":
+                    m = self.audio.toggle_music()
+                    self.flash_message("Musique " + ("activée" if m else "désactivée"))
+                    return
+                if key == "btn_toggle_sfx":
+                    s = self.audio.toggle_sfx()
+                    self.flash_message("Bruitages de pioche " + ("activés" if s else "désactivés"))
+                    return
+                if key == "btn_recruit_builder" and self.state == GameState.EXPLORING:
+                    cost = self.player.inventory.builder_cost()
+                    if self.player.inventory.recruit_builder():
+                        self.flash_message("Bâtisseur recruté !", f"Tu as {self.player.inventory.builders} bâtisseur(s).", duration=2.0)
+                    else:
+                        self.flash_message("Pas assez d'or.", f"Il faut {cost} or.")
+                    return
                 if key == "btn_upgrade_hero" and self.state == GameState.EXPLORING:
                     cost = self.player.hero.gold_upgrade_cost()
                     if cost > 0 and self.player.hero.upgrade_gold(self.player):
@@ -1027,13 +1109,15 @@ class Game:
             self._record_history()
 
         self.particles.update(dt)
+        self.audio.update_atmosphere(self.player.row)
         for ai in self.competitors:
             ai.tick(dt)
         self._update_ai_wars(dt)
         self._process_level_ups()
 
         if self.player.alive:
-            self.player.passive_regen(dt)
+            if self.player.passive_regen(dt):
+                self.flash_message("Monument érigé !", f"Monument #{self.player.inventory.monuments_built} terminé ! +5% dégâts de pioche.", duration=3.5)
             if self.player.has_companion:
                 msgs = self.player.companion.tick(dt, self.player, self.world, self.ledger, self.stones, self.artifacts)
                 for msg in msgs:
@@ -1054,12 +1138,20 @@ class Game:
             return
 
         if self.state == GameState.EXPLORING:
-            if self.mouse_down and self.mining_cell:
+            self.is_mining_active = False
+            mods = pygame.key.get_mods()
+            alt_held = bool(mods & pygame.KMOD_ALT)
+
+            if alt_held:
+                self._update_alt_mining(now)
+            elif self.mouse_down and self.mining_cell:
                 if self.hover_cell != self.mining_cell:
                     self.mining_cell = None
-                elif now - self.last_hit_time >= self._attack_interval(now):
-                    self.last_hit_time = now
-                    self.apply_hit(*self.mining_cell)
+                else:
+                    self.is_mining_active = True
+                    if now - self.last_hit_time >= self._attack_interval(now):
+                        self.last_hit_time = now
+                        self.apply_hit(*self.mining_cell)
             elif self.held_dirs:
                 self._update_held_direction(now)
 
@@ -1072,7 +1164,7 @@ class Game:
             return
 
         self.renderer.draw_background(self.player.row, self.particles)
-        self.renderer.draw_grid(self.world, self.player, self.hover_cell, self.mining_cell)
+        self.renderer.draw_grid(self.world, self.player, self.hover_cell, self.mining_cell, is_mining=self.is_mining_active)
         self.particles.draw_particles(self.screen)
         self.renderer.draw_top_bar(self.player)
         now = self.session_time

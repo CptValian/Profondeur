@@ -289,7 +289,7 @@ WAR_AI_INTERVAL = 30.0        # les IA envisagent une attaque toutes les X secon
 WAR_WIN_SCORE = 25            # points de score par victoire (attaque réussie ou défense réussie)
 
 # --- Valeur des blocs : or et XP proportionnels à la difficulté (points de vie du bloc) ---
-GOLD_PER_BLOCK_HP = 0.28        # or moyen = HP de base du bloc x ce facteur (les blocs d'artefact ne donnent pas d'or)
+GOLD_PER_BLOCK_HP = 0.364       # or moyen = HP de base du bloc x ce facteur (x1.3)
 BLOCK_VALUE_RANDOM = (0.7, 1.3)  # petit aléa autour de la moyenne (moyenne = 1)
 XP_BLOCK_RANDOM = (0.8, 1.2)
 

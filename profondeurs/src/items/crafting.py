@@ -47,23 +47,45 @@ class Recipe:
     range: float              # portée d'attaque (<= 60 : corps à corps)
     interval: float           # secondes entre deux attaques
     description: str = ""
+    attack_type: str = "physical"  # physical | piercing | magic | blunt
+    armor_type: str = "light"      # light | heavy | magical
+
+
+AFFINITY_MATRIX = {
+    ("magic", "heavy"): 2.0,      # La magie transperce l'armure lourde des Golems
+    ("magic", "light"): 1.0,
+    ("magic", "magical"): 0.7,
+    ("piercing", "light"): 1.5,   # Perçant/distance fort contre armures légères
+    ("piercing", "heavy"): 0.6,   # Perçant faible contre armures lourdes
+    ("piercing", "magical"): 1.0,
+    ("blunt", "magical"): 1.5,    # Contondant fort contre unités magiques/runiques
+    ("blunt", "heavy"): 1.2,
+    ("blunt", "light"): 0.8,
+    ("physical", "light"): 1.2,
+    ("physical", "heavy"): 0.7,
+    ("physical", "magical"): 1.2,
+}
+
+
+def get_affinity_multiplier(attack_type: str, armor_type: str) -> float:
+    return AFFINITY_MATRIX.get((attack_type, armor_type), 1.0)
 
 
 RECIPES = [
     Recipe("militia", "Milicien de roche", "troop", {"bone_shard": 3, "iron_rivet": 2},
-           4, 20, 1, 60, 22, 0.8, "Une recrue armée d'un pic ébréché."),
+           4, 20, 1, 60, 22, 0.8, "Une recrue armée d'un pic ébréché.", attack_type="physical", armor_type="light"),
     Recipe("pikeman", "Piquier de fer", "troop", {"iron_rivet": 4, "tanned_hide": 2},
-           9, 40, 3, 55, 40, 1.0, "Tient la ligne avec une longue pique."),
+           9, 40, 3, 55, 40, 1.0, "Tient la ligne avec une longue pique.", attack_type="piercing", armor_type="heavy"),
     Recipe("crystal_archer", "Archer cristallin", "troop", {"raw_crystal": 3, "tanned_hide": 2, "bone_shard": 2},
-           16, 30, 2, 50, 230, 1.4, "Tire ses flèches de cristal depuis l'arrière."),
+           16, 30, 2, 50, 230, 1.4, "Tire ses flèches de cristal depuis l'arrière.", attack_type="piercing", armor_type="light"),
     Recipe("golem", "Golem de roche", "troop", {"golem_core": 2, "iron_rivet": 4},
-           22, 120, 8, 38, 28, 1.5, "Lent, massif, presque indestructible."),
+           22, 120, 8, 38, 28, 1.5, "Lent, massif, presque indestructible.", attack_type="blunt", armor_type="heavy"),
     Recipe("rune_knight", "Chevalier runique", "troop", {"rune_cord": 3, "golem_core": 2, "raw_crystal": 3},
-           38, 90, 10, 62, 28, 1.0, "Un champion gravé de runes."),
+           38, 90, 10, 62, 28, 1.0, "Un champion gravé de runes.", attack_type="magic", armor_type="magical"),
     Recipe("abyss_stalker", "Rôdeur abyssal", "troop", {"abyssal_scale": 3, "rune_cord": 2},
-           70, 160, 14, 82, 30, 0.9, "Il frappe depuis l'ombre."),
+           70, 160, 14, 82, 30, 0.9, "Il frappe depuis l'ombre.", attack_type="physical", armor_type="light"),
     Recipe("star_guardian", "Gardien stellaire", "troop", {"star_fragment": 2, "abyssal_scale": 2, "rune_cord": 2},
-           130, 300, 25, 55, 34, 1.1, "Une légende debout."),
+           130, 300, 25, 55, 34, 1.1, "Une légende debout.", attack_type="magic", armor_type="magical"),
 ]
 RECIPES_BY_ID = {r.recipe_id: r for r in RECIPES}
 
