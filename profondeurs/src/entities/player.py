@@ -138,9 +138,13 @@ class Player:
         return self.base_max_health + self.bonus_max_health + self.helmet.effective_bonus
 
     @property
+    def monument_bonus(self) -> float:
+        return self.inventory.monuments_built * 0.05
+
+    @property
     def mining_power(self) -> float:
         base = self.tool.power + self.bonus_mining_power + self.level_damage_bonus
-        return base * (1 + self.bonus_mining_power_pct + self.items_level_bonus())
+        return base * (1 + self.bonus_mining_power_pct + self.items_level_bonus() + self.monument_bonus)
 
     def war_items(self):
         """Objets pouvant perdre un palier quand on perd une guerre."""
@@ -206,25 +210,27 @@ class Player:
     def heal(self, amount: float):
         self.health = min(self.max_health, self.health + amount)
 
-    def passive_regen(self, dt: float):
+    def passive_regen(self, dt: float) -> bool:
         """Régénération passive lente : casque + amulette, hors combat comme en combat.
         L'amulette (et seulement elle) gagne de l'XP proportionnellement aux PV
         qu'elle a réellement permis de récupérer.
-        Génère également de l'XP passive pour le niveau principal grâce aux pierres d'XP."""
+        Génère également de l'XP passive pour le niveau principal grâce aux pierres d'XP.
+        Retourne True si un monument vient d'être achevé."""
         if not self.alive:
-            return
+            return False
+        monument_finished = self.inventory.tick_monuments(dt)
         if self.inventory.xp_stones > 0:
             self.gain_player_xp(dt * self.inventory.xp_stones * 0.8)
         helmet_amt = self.helmet.effective_regen * dt
         amulet_amt = self.amulet.effective_regen * dt
         total = helmet_amt + amulet_amt
-        if total <= 0:
-            return
-        before = self.health
-        self.heal(total)
-        actually_healed = self.health - before
-        amulet_share = actually_healed * (amulet_amt / total)
-        self.amulet.add_xp(amulet_share * config.AMULET_XP_PER_HP_REGEN)
+        if total > 0:
+            before = self.health
+            self.heal(total)
+            actually_healed = self.health - before
+            amulet_share = actually_healed * (amulet_amt / total)
+            self.amulet.add_xp(amulet_share * config.AMULET_XP_PER_HP_REGEN)
+        return monument_finished
 
     def gain_gold(self, amount: float):
         earned = amount * self.gold_multiplier
