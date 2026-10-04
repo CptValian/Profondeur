@@ -44,7 +44,7 @@ def stats(levels: dict, permanent_hp_bonus: float = 0.0) -> dict:
 
 def format_stat(key: str, value: float) -> str:
     if key in ("damage", "hp", "range"):
-        return f"{value:.0f}"
+        return f"{value:.2f}"
     if key == "speed":
         return f"{value:.2f}/s"
     return f"{int(value)}"

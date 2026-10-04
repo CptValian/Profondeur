@@ -268,14 +268,9 @@ class Renderer:
     # ==================================================================
     # GALERIE DE MINE
     # ==================================================================
-    def draw_grid(self, world_gen, player, hover_cell, mining_cell, is_mining=False):
+    def draw_grid(self, world_gen, player, hover_cell, mining_cell, is_mining=False, competitors=None):
         top_row = max(0, player.row - 2)
         size = self.tile
-
-        asc_limit = player.max_depth_reached - config.MAX_ASCENT
-        if not hasattr(self, "_ascent_veil") or self._ascent_veil.get_size() != (size * config.GRID_COLS, size):
-            self._ascent_veil = pygame.Surface((size * config.GRID_COLS, size), pygame.SRCALPHA)
-            self._ascent_veil.fill((0, 0, 0, 150))
 
         for r_screen in range(self.visible_rows):
             row = top_row + r_screen
@@ -291,7 +286,7 @@ class Renderer:
                     continue
 
                 stone = self.stones.get_by_id(block.stone_id)
-                variant = (row * 37 + col * 13 + hash(stone.stone_id)) % 6
+                variant = ((row * 73856093) ^ (col * 19349663) ^ (hash(stone.stone_id) * 83492791)) % 6
                 tex = self._get_texture(stone, variant=variant)
                 shade_factor = max(0.4, 1 - r_screen * config.DEPTH_SHADE_STEP)
                 shaded = tex.copy()
@@ -339,11 +334,6 @@ class Renderer:
                     fill_w = int(rect.width * block.health_ratio)
                     pygame.draw.rect(self.screen, (250, 90, 60), (bar_rect.x, bar_rect.y, fill_w, 6))
 
-        # voile sombre sur les rangées trop hautes (remontée interdite)
-        for r_screen in range(self.visible_rows):
-            if top_row + r_screen < asc_limit:
-                self.screen.blit(self._ascent_veil, (self.grid_x, self.grid_y + r_screen * size))
-
         # compagnon de mine
         if player.has_companion:
             c_row_screen = player.companion.row - top_row
@@ -351,6 +341,15 @@ class Renderer:
                 cx = self.grid_x + player.companion.col * size + size // 2
                 cy = self.grid_y + c_row_screen * size + size // 2
                 self._draw_companion_on_grid(cx, cy, player.companion)
+
+        # bots concourants
+        if competitors:
+            for ai in competitors:
+                ai_row_screen = ai.state.row - top_row
+                if 0 <= ai_row_screen < self.visible_rows:
+                    aix = self.grid_x + ai.state.col * size + size // 2
+                    aiy = self.grid_y + ai_row_screen * size + size // 2
+                    self._draw_ai_miner_on_grid(aix, aiy, ai)
 
         # joueur
         p_row_screen = player.row - top_row
@@ -366,6 +365,21 @@ class Renderer:
         pygame.draw.circle(self.screen, color, (cx, cy), 11)
         pygame.draw.circle(self.screen, (255, 255, 255), (cx, cy), 11, 2)
         pygame.draw.circle(self.screen, (255, 220, 100), (cx, cy - 2), 3)
+
+    def _draw_ai_miner_on_grid(self, px, py, ai):
+        pygame.draw.circle(self.screen, (20, 20, 25), (px + 3, py + 3 + 12), 15)  # ombre
+        pygame.draw.circle(self.screen, ai.color, (px, py), 15)
+        pygame.draw.circle(self.screen, (255, 255, 255), (px, py), 15, 2)
+        # yeux
+        pygame.draw.circle(self.screen, (30, 20, 15), (px - 5, py - 2), 2)
+        pygame.draw.circle(self.screen, (30, 20, 15), (px + 5, py - 2), 2)
+
+        is_mining = ai.status in ("creuse", "combat")
+        swing = -35 + math.sin((pygame.time.get_ticks() + abs(hash(ai.name))) / 75.0) * 42 if is_mining else -35
+        self.draw_pickaxe(px + 10, py + 4, ai.tool, scale=0.42, angle=swing, pivot="grip")
+
+        name_surf = self.font_tiny.render(ai.name.split()[0], True, (240, 240, 240))
+        self.screen.blit(name_surf, (px - name_surf.get_width() // 2, py - 24))
 
     def _is_adjacent(self, player, row, col):
         if row == player.row and col == player.col:
@@ -554,9 +568,9 @@ class Renderer:
             y += 16
         y += 8
 
-        stat1 = self.font_small.render(f"Dégâts par coup : {tool.power:.1f}", True, (220, 220, 220))
+        stat1 = self.font_small.render(f"Dégâts par coup : {tool.power:.2f}", True, (220, 220, 220))
         self.screen.blit(stat1, (rect.x, y)); y += 24
-        stat2 = self.font_small.render(f"Cadence : {tool.speed:.1f} coups/s", True, (220, 220, 220))
+        stat2 = self.font_small.render(f"Cadence : {tool.speed:.2f} coups/s", True, (220, 220, 220))
         self.screen.blit(stat2, (rect.x, y)); y += 30
 
         self._draw_upgrade_button(rect, y, tool, player, "btn_upgrade_tool")
@@ -618,7 +632,7 @@ class Renderer:
             self.screen.blit(lvl_txt, (content.centerx - lvl_txt.get_width() // 2, y)); y += 18
             self._draw_xp_bar(content.x, y, content.width, comp)
             y += 22
-            p_txt = self.font_small.render(f"Dégâts par coup : {comp.mining_power:.1f}", True, (220, 220, 220))
+            p_txt = self.font_small.render(f"Dégâts par coup : {comp.mining_power:.2f}", True, (220, 220, 220))
             self.screen.blit(p_txt, (content.x, y)); y += 22
             s_txt = self.font_small.render(f"Cadence de minage : {comp.hits_per_second:.2f} coups/s", True, (220, 220, 220))
             self.screen.blit(s_txt, (content.x, y)); y += 22
@@ -645,11 +659,11 @@ class Renderer:
         equip = {"helmet": player.helmet, "armor": player.armor,
                  "aura": player.aura, "amulet": player.amulet, "gauntlet": player.gauntlet}[self.active_equip]
         bonus_label = {
-            "helmet": lambda v: f"+{v:.0f} PV max",
-            "armor": lambda v: f"-{v * 100:.0f}% dégâts reçus",
-            "aura": lambda v: f"+{v * 100:.0f}% d'or gagné",
+            "helmet": lambda v: f"+{v:.2f} PV max",
+            "armor": lambda v: f"-{v * 100:.2f}% dégâts reçus",
+            "aura": lambda v: f"+{v * 100:.2f}% d'or gagné",
             "amulet": lambda v: "",
-            "gauntlet": lambda v: f"+{v:.1f} dégâts contre les monstres",
+            "gauntlet": lambda v: f"+{v:.2f} dégâts contre les monstres",
         }[self.active_equip]
         xp_source = {
             "helmet": "S'améliore en encaissant des dégâts (après réduction de l'armure).",
@@ -707,20 +721,20 @@ class Renderer:
         if kind == "helmet":
             flat_hp = equip.flat_bonus()
             flat_rg = equip.flat_bonus("regen")
-            rows.append(("PV max", f"+{equip.base_bonus:.0f}", f"+{flat_hp:.1f} plat", f"+{equip.effective_bonus:.1f}"))
-            rows.append(("Régénération", f"{equip.data['regen']:.2f}/s", f"+{flat_rg:.3f}/s plat", f"{equip.effective_regen:.3f}/s"))
+            rows.append(("PV max", f"+{equip.base_bonus:.2f}", f"+{flat_hp:.2f} plat", f"+{equip.effective_bonus:.2f}"))
+            rows.append(("Régénération", f"{equip.data['regen']:.2f}/s", f"+{flat_rg:.2f}/s plat", f"{equip.effective_regen:.2f}/s"))
         elif kind == "amulet":
             flat_rg = equip.flat_bonus("regen")
-            rows.append(("Régénération", f"{equip.data['regen']:.2f}/s", f"+{flat_rg:.3f}/s plat", f"{equip.effective_regen:.3f}/s"))
+            rows.append(("Régénération", f"{equip.data['regen']:.2f}/s", f"+{flat_rg:.2f}/s plat", f"{equip.effective_regen:.2f}/s"))
         elif kind == "armor":
             flat_arm = equip.flat_bonus()
-            rows.append(("Dégâts reçus", f"-{equip.base_bonus * 100:.1f}%", f"-{flat_arm * 100:.2f}% plat", f"-{equip.effective_bonus * 100:.2f}%"))
+            rows.append(("Dégâts reçus", f"-{equip.base_bonus * 100:.2f}%", f"-{flat_arm * 100:.2f}% plat", f"-{equip.effective_bonus * 100:.2f}%"))
         elif kind == "aura":
             flat_aur = equip.flat_bonus()
-            rows.append(("Or gagné", f"+{equip.base_bonus * 100:.1f}%", f"+{flat_aur * 100:.2f}% plat", f"+{equip.effective_bonus * 100:.2f}%"))
+            rows.append(("Or gagné", f"+{equip.base_bonus * 100:.2f}%", f"+{flat_aur * 100:.2f}% plat", f"+{equip.effective_bonus * 100:.2f}%"))
         else:
             flat_gt = equip.flat_bonus()
-            rows.append(("Dégâts vs monstres", f"+{equip.base_bonus:.0f}", f"+{flat_gt:.1f} plat", f"+{equip.effective_bonus:.1f}"))
+            rows.append(("Dégâts vs monstres", f"+{equip.base_bonus:.2f}", f"+{flat_gt:.2f} plat", f"+{equip.effective_bonus:.2f}"))
         for row_info in rows:
             label, base_v, flat_v, total_v = row_info
             line = self.font_small.render(f"{label} : {base_v} ({flat_v}) -> {total_v}", True, (220, 220, 220))
@@ -1201,9 +1215,9 @@ class Renderer:
         y += 24
 
         stats_lines = [
-            f"PV max : {hero.max_hp:.0f}",
-            f"Dégâts d'attaque : {hero.attack_damage:.1f}",
-            f"Armure (Défense) : {hero.armor:.1f}",
+            f"PV max : {hero.max_hp:.2f}",
+            f"Dégâts d'attaque : {hero.attack_damage:.2f}",
+            f"Armure (Défense) : {hero.armor:.2f}",
             f"Cadence d'attaque : 1 coup toutes les {hero.attack_interval:.2f} s",
             f"Multiplicateur XP : x{hero.xp_multiplier:.2f}",
         ]
@@ -1415,14 +1429,14 @@ class Renderer:
             f"Or possédé : {int(player.inventory.gold)}",
             f"Ressources minées : {player.inventory.total_resources()}",
             f"Pierres découvertes : {len(self.stones.all_discovered())}",
-            f"Pierres d'XP possédées : {player.inventory.xp_stones} (+{player.inventory.xp_stones * 0.8:.1f} XP/s)",
+            f"Pierres d'XP possédées : {player.inventory.xp_stones} (+{player.inventory.xp_stones * 0.8:.2f} XP/s)",
             f"Artefacts trouvés : {len(self.artifacts.found)}/{len(self.artifacts.defs)}",
-            f"Puissance de minage : {player.mining_power:.1f}  (dont +{player.level_damage_bonus:.1f} de niveau)",
-            f"Dégâts en combat : {player.mining_power + player.combat_bonus:.1f}",
-            f"Chance d'artefact inédit : {self.artifacts.pity_chance(player.artifact_pity, player.bonus_artifact_luck, player.new_artifact_flat) * 100:.0f}%",
+            f"Puissance de minage : {player.mining_power:.2f}  (dont +{player.level_damage_bonus:.2f} de niveau)",
+            f"Dégâts en combat : {player.mining_power + player.combat_bonus:.2f}",
+            f"Chance d'artefact inédit : {self.artifacts.pity_chance(player.artifact_pity, player.bonus_artifact_luck, player.new_artifact_flat) * 100:.2f}%",
             f"Composants : {player.inventory.total_components()} · Victoires de guerre : {player.inventory.war_wins}",
             f"Troupes : {crafting.army_totals(player.inventory)['count']} · Donjon : niv. {sum(player.inventory.tower.values())}",
-            f"Bonus de minage des niveaux d'objets : +{player.items_level_bonus() * 100:.1f}%",
+            f"Bonus de minage des niveaux d'objets : +{player.items_level_bonus() * 100:.2f}%",
         ]
         for line in lines:
             for sub in self._wrap_text(line, self.font_small, rect.width):
@@ -1652,6 +1666,7 @@ class Renderer:
             "Normal": (150, 140, 70),
             "Avancé": (160, 100, 70),
             "Difficile": (170, 70, 70),
+            "Extrême": (210, 40, 40),
         }
 
         # regroupement par équipe, 4 colonnes
@@ -1700,19 +1715,20 @@ class Renderer:
                 self.rects[key] = r
         else:
             quick_label = self.font_tiny.render("Réglage rapide :", True, (170, 165, 180))
-            self.screen.blit(quick_label, (self.W // 2 - 380, quick_y + 12))
-            qx = self.W // 2 - 240
+            self.screen.blit(quick_label, (self.W // 2 - 440, quick_y + 12))
+            qx = self.W // 2 - 330
             for key, label, color in (("diff_all_facile", "Tout Facile", (90, 160, 100)),
                                        ("diff_all_modere", "Tout Modéré", (110, 150, 120)),
                                        ("diff_all_normal", "Tout Normal", (150, 140, 70)),
                                        ("diff_all_avance", "Tout Avancé", (160, 100, 70)),
-                                       ("diff_all_difficile", "Tout Difficile", (170, 70, 70))):
-                r = pygame.Rect(qx, quick_y, 110, 30)
+                                       ("diff_all_difficile", "Tout Difficile", (170, 70, 70)),
+                                       ("diff_all_extreme", "Tout Extrême", (210, 40, 40))):
+                r = pygame.Rect(qx, quick_y, 104, 30)
                 pygame.draw.rect(self.screen, color, r, border_radius=6)
                 t = self.font_tiny.render(label, True, (255, 255, 255))
                 self.screen.blit(t, (r.centerx - t.get_width() // 2, r.centery - t.get_height() // 2))
                 self.rects[key] = r
-                qx += 116
+                qx += 110
 
             btn_w = 340 if has_save else 260
             btn_start = pygame.Rect(self.W // 2 - btn_w // 2, quick_y + 50, btn_w, 54)

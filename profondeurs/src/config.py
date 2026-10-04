@@ -424,7 +424,7 @@ RARITY_COLORS = {
 }
 
 # --- Combat ---
-MONSTER_SPAWN_CHANCE = 0.04
+MONSTER_SPAWN_CHANCE = 0.04 / 3.0
 BOSS_DEPTH_INTERVAL = 250
 
 # arène de combat : le monstre se déplace, il faut cliquer dessus
@@ -443,6 +443,7 @@ DIFFICULTIES = {
     "Normal":    {"power_mult": 1.0, "speed_mult": 1.0, "risk_mult": 1.0},
     "Avancé":    {"power_mult": 1.18, "speed_mult": 1.12, "risk_mult": 1.12},
     "Difficile": {"power_mult": 1.35, "speed_mult": 1.25, "risk_mult": 1.25},
+    "Extrême":   {"power_mult": 1.6, "speed_mult": 1.45, "risk_mult": 1.5},
 }
 DEFAULT_DIFFICULTY = "Normal"
 
