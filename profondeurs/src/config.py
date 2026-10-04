@@ -333,10 +333,15 @@ COMBAT_ARENA_H = 220
 MONSTER_BASE_SPEED = 300         # px/s
 MONSTER_HIT_COOLDOWN = 0.12      # anti spam-clic côté joueur
 
+# --- Banque de Faction ---
+BANK_INTEREST_RATE = 0.00025  # 0.025% de l'or mis en banque généré par seconde pour CHAQUE joueur de la faction
+
 # --- Difficulté des IA concurrentes ---
 DIFFICULTIES = {
     "Facile":    {"power_mult": 0.7, "speed_mult": 0.8, "risk_mult": 0.75},
+    "Modéré":    {"power_mult": 0.85, "speed_mult": 0.9, "risk_mult": 0.88},
     "Normal":    {"power_mult": 1.0, "speed_mult": 1.0, "risk_mult": 1.0},
+    "Avancé":    {"power_mult": 1.18, "speed_mult": 1.12, "risk_mult": 1.12},
     "Difficile": {"power_mult": 1.35, "speed_mult": 1.25, "risk_mult": 1.25},
 }
 DEFAULT_DIFFICULTY = "Normal"

@@ -31,10 +31,89 @@ class TestGameFeatures(unittest.TestCase):
 
     def test_pickaxe_tiers_count(self):
         from src.items.pickaxe_specs import PICKAXE_SPECS
-        self.assertEqual(len(PICKAXE_SPECS), 70)
-        self.assertEqual(len(config.TOOL_TIERS), 70)
+        self.assertEqual(len(PICKAXE_SPECS), 100)
+        self.assertEqual(len(config.TOOL_TIERS), 100)
         self.assertAlmostEqual(config.TOOL_TIERS[10]["power"], 1.4)
         self.assertAlmostEqual(config.TOOL_TIERS[10]["speed"], 1.55)
+
+    def test_faction_bank(self):
+        from main import Game
+        game = Game()
+        game.player.inventory.gold = 1000
+        game.faction_banks[0] = 0.0
+
+        amount = game.player.inventory.gold * 0.5
+        game.player.inventory.gold -= amount
+        game.faction_banks[0] += amount
+
+        self.assertEqual(game.faction_banks[0], 500)
+        self.assertEqual(game.player.inventory.gold, 500)
+
+        old_gold = game.player.inventory.gold
+        dt = 10.0
+        expected_gen = 500 * config.BANK_INTEREST_RATE * dt
+        game.update()
+        game.player.inventory.gold += expected_gen
+        self.assertEqual(game.player.inventory.gold, old_gold + expected_gen)
+
+    def test_joint_grid_event(self):
+        from main import Game
+        game = Game()
+        self.assertFalse(game.joint_grid_active)
+
+        game.start_joint_grid_event()
+        self.assertTrue(game.joint_grid_active)
+        self.assertEqual(game.joint_grid_time_left, 30.0)
+
+        block = game.world.get_block(0, 0)
+        block.is_empty = False
+        block.health = 0.01
+        game.apply_hit(0, 0)
+        self.assertGreater(game.joint_grid_points[0], 0)
+
+        old_gold = game.player.inventory.gold
+        game.end_joint_grid_event()
+        self.assertFalse(game.joint_grid_active)
+        self.assertGreaterEqual(game.player.inventory.gold, old_gold)
+
+    def test_depth_boss_system(self):
+        from main import Game
+        game = Game()
+        self.assertFalse(game.is_depth_blocked_by_boss(500))
+        self.assertTrue(game.is_depth_blocked_by_boss(1000))
+
+        game.defeated_depth_bosses.add(1000)
+        self.assertFalse(game.is_depth_blocked_by_boss(1000))
+        self.assertTrue(game.is_depth_blocked_by_boss(2000))
+
+    def test_mercy_god_blessing(self):
+        from main import Game
+        game = Game()
+        initial_power = game.player.mining_power
+
+        game.apply_mercy_blessing(0, 2)
+        self.assertGreater(game.player.mining_power, initial_power)
+
+        old_interval = game._attack_interval(game.session_time)
+        game.apply_mercy_blessing(0, 1)
+        new_interval = game._attack_interval(game.session_time)
+        self.assertAlmostEqual(new_interval, old_interval / 2.0)
+
+    def test_raided_dungeon_hp_boost(self):
+        from src.items.inventory import Inventory
+        player = Player()
+        att_inv = player.inventory
+        def_inv = Inventory()
+
+        att_inv.units["pikeman"] = 10
+        self.assertEqual(def_inv.tower_hp_permanent_bonus, 0.0)
+
+        sim = faction_war.start_battle(att_inv, def_inv)
+        sim.run()
+        report = faction_war.finalize_battle(sim, "Attacker", att_inv, "Defender", def_inv)
+
+        if report.attacker_won:
+            self.assertEqual(def_inv.tower_hp_permanent_bonus, 50.0)
 
     def test_mining_rewards(self):
         self.assertAlmostEqual(config.GOLD_PER_BLOCK_HP, 0.364)

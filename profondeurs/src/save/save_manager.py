@@ -28,6 +28,7 @@ def _inv_extra_to_dict(inv):
         "components_seen": sorted(inv.components_seen),
         "units": dict(inv.units),
         "tower": dict(inv.tower),
+        "tower_hp_permanent_bonus": getattr(inv, "tower_hp_permanent_bonus", 0.0),
         "war_wins": inv.war_wins,
         "xp_stones": inv.xp_stones,
         "stone_fragments": inv.stone_fragments,
@@ -44,6 +45,7 @@ def _inv_extra_from_dict(inv, d):
     from src.items import crafting
     inv.units.update({k: v for k, v in d.get("units", {}).items() if k in crafting.RECIPES_BY_ID})
     inv.tower.update({k: v for k, v in d.get("tower", {}).items() if k in inv.tower})
+    inv.tower_hp_permanent_bonus = d.get("tower_hp_permanent_bonus", 0.0)
     inv.war_wins = d.get("war_wins", 0)
     inv.xp_stones = d.get("xp_stones", 0)
     inv.stone_fragments = d.get("stone_fragments", 0.0)
@@ -112,7 +114,7 @@ def save_exists(path=config.SAVE_PATH) -> bool:
 
 
 def save_game(player, stone_registry, artifact_catalog, competitive_ai, competitors=None, world=None,
-              ledger=None, path=config.SAVE_PATH, audio=None):
+              ledger=None, path=config.SAVE_PATH, audio=None, faction_banks=None):
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     pdata = {
         "row": player.row,
@@ -159,6 +161,8 @@ def save_game(player, stone_registry, artifact_catalog, competitive_ai, competit
     data = {
         "version": 3,
         "stone_ledger": ledger.to_dict() if ledger is not None else {},
+        "faction_banks": {str(k): v for k, v in (faction_banks or {}).items()},
+        "defeated_depth_bosses": list(getattr(player, "defeated_depth_bosses", set())),
         "player": pdata,
         "world_dug": world.export_dug() if world is not None else {},
         "stones": stone_registry.to_dict(),
@@ -178,7 +182,7 @@ def save_game(player, stone_registry, artifact_catalog, competitive_ai, competit
 
 
 def load_game(player, stone_registry, artifact_catalog, competitive_ai, competitors=None, world=None,
-              ledger=None, path=config.SAVE_PATH, audio=None):
+              ledger=None, path=config.SAVE_PATH, audio=None, faction_banks=None):
     if not os.path.exists(path):
         return False
     try:
@@ -243,6 +247,7 @@ def load_game(player, stone_registry, artifact_catalog, competitive_ai, competit
 
     stone_registry.load_dict(data["stones"])
     artifact_catalog.found = set(data["artifacts_found"])
+    player.defeated_depth_bosses = set(data.get("defeated_depth_bosses", []))
     player.recompute_artifact_bonuses(artifact_catalog)
     player.health = min(player.health, player.max_health)
     competitive_ai.player_rating = data.get("player_rating", 1000.0)
@@ -262,6 +267,11 @@ def load_game(player, stone_registry, artifact_catalog, competitive_ai, competit
     if audio is not None and "audio_settings" in data:
         audio.music_enabled = data["audio_settings"].get("music_enabled", True)
         audio.sfx_enabled = data["audio_settings"].get("sfx_enabled", True)
+
+    if faction_banks is not None and "faction_banks" in data:
+        faction_banks.clear()
+        for k, v in data["faction_banks"].items():
+            faction_banks[int(k)] = float(v)
 
     if competitors:
         saved_by_name = {c["name"]: c for c in data.get("competitors", [])}

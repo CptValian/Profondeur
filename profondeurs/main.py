@@ -15,6 +15,7 @@ import os
 import math
 import random
 import time
+from collections import defaultdict
 import pygame
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -108,6 +109,8 @@ class Game:
         self.last_hit_time = 0.0
         self.alt_dir = -1             # -1 = vers la gauche (droite à gauche), 1 = vers la droite
         self.is_mining_active = False # True si le mineur est en train de miner (souris, Maj + direction, Alt)
+        self.auto_alt_mining = False  # Toggle ordre permanent Alt
+        self.auto_shift_dir = None    # Toggle ordre permanent Shift + direction: (drow, dcol)
 
         self.last_frame_time = time.time()
         self.haste_until = 0.0
@@ -133,6 +136,20 @@ class Game:
         self.renderer._texture_cache = {}
         self.particles = ParticleSystem(self.renderer.main_w, self.screen.get_height())
 
+        self.defeated_depth_bosses = getattr(self.player, "defeated_depth_bosses", set())
+        self.player.defeated_depth_bosses = self.defeated_depth_bosses
+        self.faction_banks = {0: 0.0, 1: 0.0, 2: 0.0, 3: 0.0}
+        self.renderer.faction_banks = self.faction_banks
+        self.mercy_god_timer = 0.0
+        self.team_speed_buff_until = {0: 0.0, 1: 0.0, 2: 0.0, 3: 0.0}
+        self.team_gold_buff_until = {0: 0.0, 1: 0.0, 2: 0.0, 3: 0.0}
+        self.pending_mercy_choice = False
+
+        self.joint_grid_timer = 0.0
+        self.joint_grid_active = False
+        self.joint_grid_time_left = 0.0
+        self.joint_grid_points = {0: 0, 1: 0, 2: 0, 3: 0}
+
         self.war_log = []          # BattleReport
         self.war_cooldown = {}     # nom -> session_time jusqu'auquel il ne peut plus attaquer
         self.war_shield = {}       # nom -> session_time jusqu'auquel il est protégé
@@ -140,8 +157,6 @@ class Game:
         self.war_scene = None
         self.war_scene_report = None
         self.war_ai_timer = 0.0
-        self.war_scene = None
-        self.war_scene_report = None
         self.war_ctx = {}
 
         self.history = {"Toi": []}
@@ -155,7 +170,8 @@ class Game:
 
         if load_existing:
             save_manager.load_game(self.player, self.stones, self.artifacts, self.competitive_ai,
-                                   self.competitors, world=self.world, ledger=self.ledger, audio=self.audio)
+                                   self.competitors, world=self.world, ledger=self.ledger, audio=self.audio,
+                                   faction_banks=self.faction_banks)
 
         self.pending_stone = None
         self.current_monster = None
@@ -163,10 +179,13 @@ class Game:
         self.combat_target_block = None
         self.mining_cell = None
         self.mouse_down = False
+        self.auto_alt_mining = False
+        self.auto_shift_dir = None
 
     def _save(self):
         save_manager.save_game(self.player, self.stones, self.artifacts, self.competitive_ai,
-                               self.competitors, world=self.world, ledger=self.ledger, audio=self.audio)
+                               self.competitors, world=self.world, ledger=self.ledger, audio=self.audio,
+                               faction_banks=self.faction_banks)
         self.has_save = True
 
     def _saved_or_current_difficulties(self):
@@ -193,6 +212,46 @@ class Game:
         self.state = GameState.EXPLORING
         self.flash_message("Nouvelle partie lancée !")
 
+    def start_joint_grid_event(self):
+        self.joint_grid_timer = 0.0
+        self.joint_grid_active = True
+        self.joint_grid_time_left = 30.0
+        self.joint_grid_points = {0: 0, 1: 0, 2: 0, 3: 0}
+        self.flash_message("ÉVÉNEMENT : GRILLE COMMUNE !", "Casse le plus de blocs en 30s. Seul le DERNIER COUP compte !", duration=4.0)
+
+    def update_joint_grid_event(self, dt):
+        self.joint_grid_time_left -= dt
+        if self.joint_grid_time_left <= 0:
+            self.end_joint_grid_event()
+            return
+
+        for ai in self.competitors:
+            if random.random() < 0.8 * dt * getattr(ai, "speed_mult", 1.0):
+                self.joint_grid_points[ai.team] += 1
+
+    def end_joint_grid_event(self):
+        self.joint_grid_active = False
+        total_gold = self.player.inventory.gold + sum(ai.inventory.gold for ai in self.competitors)
+        ranked_teams = sorted(range(4), key=lambda t: self.joint_grid_points[t], reverse=True)
+        rewards_pct = {0: 0.15, 1: 0.06, 2: 0.03, 3: 0.01}
+
+        res_summary = []
+        for rank_idx, team in enumerate(ranked_teams):
+            pct = rewards_pct[rank_idx]
+            per_member = (total_gold * pct) / 4.0
+
+            if team == 0:
+                self.player.gain_gold(per_member)
+            for ai in self.competitors:
+                if ai.team == team:
+                    ai.inventory.gold += per_member
+
+            t_name = config.TEAM_NAMES[team]
+            pts = self.joint_grid_points[team]
+            res_summary.append(f"#{rank_idx + 1} {t_name} ({pts} pts) : +{int(per_member)} or/joueur")
+
+        self.flash_message("Fin de la Grille Commune !", " · ".join(res_summary[:2]), duration=6.0)
+
     def go_to_menu(self):
         self._save()
         self.menu_new_game = False
@@ -209,7 +268,31 @@ class Game:
         iv = self.player.tool.attack_interval
         if now < self.haste_until:
             iv /= 1 + self.player.perks.get("haste_on_break", 0.0)
+        if now < self.team_speed_buff_until.get(0, 0.0):
+            iv /= 2.0
         return iv
+
+    def apply_mercy_blessing(self, team, option):
+        now = self.session_time
+        duration = 900.0  # 15 minutes
+        if option == 1:
+            self.team_speed_buff_until[team] = now + duration
+            msg = "x2 Vitesse de minage pendant 15 minutes !"
+        elif option == 2:
+            if team == 0:
+                self.player.bonus_mining_power += 0.2
+                self.player.bonus_mining_power_pct += 0.01
+            for ai in self.competitors:
+                if ai.team == team:
+                    ai.state.mining_power_bonus += 0.2
+                    ai.state.mining_power_pct += 0.01
+            msg = "+0,2 et +1% Puissance de minage permanent !"
+        elif option == 3:
+            self.team_gold_buff_until[team] = now + duration
+            msg = "Revenu d'or des pierres x3 pendant 15 minutes !"
+
+        team_name = config.TEAM_NAMES[team]
+        self.flash_message(f"Bénédiction du Dieu de la Pitié !", f"{team_name} : {msg}", duration=4.5)
 
     def _is_adjacent(self, row, col):
         p = self.player
@@ -219,8 +302,43 @@ class Game:
                              (p.row + 1, p.col), (p.row - 1, p.col))
 
     def _ascent_blocked(self, target_row):
-        """On ne peut pas remonter à plus de MAX_ASCENT blocs au-dessus de la profondeur max atteinte."""
-        return target_row < self.player.max_depth_reached - config.MAX_ASCENT
+        """Remontée libre : aucune limite de hauteur."""
+        return False
+
+    def is_depth_blocked_by_boss(self, target_row):
+        if target_row < 1000:
+            return False
+        milestone = (target_row // 1000) * 1000
+        return milestone not in self.defeated_depth_bosses
+
+    def start_depth_boss_battle(self, milestone, team=0):
+        level = milestone // 1000
+        boss_rid = f"depth_boss_{level}"
+
+        combined_units = defaultdict(int)
+        if team == 0:
+            for rid, n in self.player.inventory.units.items():
+                combined_units[rid] += n
+        for ai in self.competitors:
+            if ai.team == team:
+                for rid, n in ai.inventory.units.items():
+                    combined_units[rid] += n
+
+        if sum(combined_units.values()) == 0:
+            self.flash_message(f"Boss de {milestone}m débloqué !", "Ta faction doit fabriquer des troupes à l'Atelier pour l'affronter !", duration=4.0)
+            return
+
+        from src.combat.battle_sim import BattleSim
+        sim = BattleSim(dict(combined_units), {boss_rid: 1}, {}, record_events=True)
+        if team == 0:
+            self.war_ctx = {"att": "Ta Faction", "def": f"Boss de {milestone}m", "milestone": milestone, "role": "boss"}
+            self._open_war_scene(WarScene(sim, "Troupes de ta faction", f"Boss Gardien ({milestone}m)",
+                                          (255, 214, 150), (220, 50, 50), player_role="att"))
+        else:
+            sim.run()
+            if sim.attacker_won:
+                self.defeated_depth_bosses.add(milestone)
+                self.flash_message(f"Le Boss de {milestone}m a été vaincu par {config.TEAM_NAMES[team]} !", "La voie est libre !", duration=5.0)
 
     def _warn_ascent(self):
         if not (self.message and time.time() < self.message_until):
@@ -234,6 +352,9 @@ class Game:
             return False
         if self._ascent_blocked(target_row):
             self._warn_ascent()
+            return False
+        if self.is_depth_blocked_by_boss(target_row):
+            self.start_depth_boss_battle((target_row // 1000) * 1000, 0)
             return False
         block = self.world.get_block(target_row, target_col)
         if not block.is_empty:
@@ -254,6 +375,9 @@ class Game:
             return
         if self._ascent_blocked(target_row):
             self._warn_ascent()
+            return
+        if self.is_depth_blocked_by_boss(target_row):
+            self.start_depth_boss_battle((target_row // 1000) * 1000, 0)
             return
         block = self.world.get_block(target_row, target_col)
 
@@ -282,6 +406,10 @@ class Game:
             # Descendre d'un niveau
             down_row = self.player.row + 1
             if down_row < 0 or self._ascent_blocked(down_row):
+                return
+            if self.is_depth_blocked_by_boss(down_row):
+                self.start_depth_boss_battle((down_row // 1000) * 1000, 0)
+                self.auto_alt_mining = False
                 return
             down_block = self.world.get_block(down_row, self.player.col)
             if down_block.is_empty:
@@ -323,6 +451,9 @@ class Game:
         if self._ascent_blocked(row):
             self._warn_ascent()
             return
+        if self.is_depth_blocked_by_boss(row):
+            self.start_depth_boss_battle((row // 1000) * 1000, 0)
+            return
         block = self.world.get_block(row, col)
 
         if block.is_empty:
@@ -345,6 +476,11 @@ class Game:
         return x, y
 
     def apply_hit(self, row, col):
+        if self.is_depth_blocked_by_boss(row):
+            self.start_depth_boss_battle((row // 1000) * 1000, 0)
+            self.mining_cell = None
+            return
+
         block = self.world.get_block(row, col)
         if block.is_empty or block.contains_monster:
             self.mining_cell = None
@@ -373,6 +509,10 @@ class Game:
         if crit:
             self.particles.spawn_hit_sparks(px, py, n=14)
 
+        # SEUL le dernier coup qui casse le bloc donne le point
+        if self.joint_grid_active:
+            self.joint_grid_points[0] += 1
+
         stone = self.stones.get_by_id(block.stone_id)
         self.particles.spawn_break(px, py, stone.base_color)
 
@@ -383,6 +523,8 @@ class Game:
         self.player.inventory.stone_fragments += block.max_health
         # or et XP : en moyenne proportionnels à la difficulté du bloc (petit aléa) ; pas d'or sur les pierres d'artefact
         block_gold = block.roll_gold(random) + self.player.block_gold_bonus
+        if time.time() < self.team_gold_buff_until.get(0, 0.0):
+            block_gold *= 3.0
         earned = self.player.gain_gold(block_gold)
         if self.player.tool.add_xp(block.roll_xp(random) + self.player.block_xp_bonus):
             self.flash_message(f"Pioche niveau {self.player.tool.level} !",
@@ -563,6 +705,15 @@ class Game:
         if self.war_scene is None or self.war_scene_report is not None:
             return
         ctx = self.war_ctx
+        if ctx.get("role") == "boss":
+            milestone = ctx.get("milestone", 1000)
+            if self.war_scene.sim.attacker_won:
+                self.defeated_depth_bosses.add(milestone)
+                self.flash_message(f"VICTOIRE ! Boss de {milestone}m vaincu !", "Ta faction a ouvert la voie !", duration=5.0)
+            else:
+                self.flash_message(f"Défaite contre le Boss de {milestone}m...", "Renforce tes troupes et réessaie !", duration=4.0)
+            return
+
         hero_arg = self.player.hero if (ctx.get("role") == "att" and self.player.has_hero) else None
         rep = faction_war.finalize_battle(self.war_scene.sim, ctx["att"], self._inventory_of(ctx["att"]),
                                           ctx["def"], self._inventory_of(ctx["def"]), self._items_of(ctx["def"]), hero=hero_arg)
@@ -926,8 +1077,22 @@ class Game:
                 pygame.K_q: (0, -1), pygame.K_LEFT: (0, -1),
                 pygame.K_d: (0, 1), pygame.K_RIGHT: (0, 1),
             }
+            if event.key in (pygame.K_LALT, pygame.K_RALT) and self.state == GameState.EXPLORING:
+                self.auto_alt_mining = not self.auto_alt_mining
+                if self.auto_alt_mining:
+                    self.auto_shift_dir = None
+            if event.key in (pygame.K_LSHIFT, pygame.K_RSHIFT) and self.state == GameState.EXPLORING:
+                if self.auto_shift_dir is not None:
+                    self.auto_shift_dir = None
+
             if event.key in dir_map and self.state == GameState.EXPLORING:
                 d = dir_map[event.key]
+                if event.mod & pygame.KMOD_SHIFT:
+                    if self.auto_shift_dir == d:
+                        self.auto_shift_dir = None
+                    else:
+                        self.auto_shift_dir = d
+                        self.auto_alt_mining = False
                 if d not in self.held_dirs:
                     self.held_dirs.append(d)
                 self.last_hit_time = 0.0
@@ -971,8 +1136,12 @@ class Game:
                     self.ai_difficulties[idx] = nxt
                 elif key == "diff_all_facile":
                     self.ai_difficulties = ["Facile"] * len(self.ai_difficulties)
+                elif key == "diff_all_modere":
+                    self.ai_difficulties = ["Modéré"] * len(self.ai_difficulties)
                 elif key == "diff_all_normal":
                     self.ai_difficulties = ["Normal"] * len(self.ai_difficulties)
+                elif key == "diff_all_avance":
+                    self.ai_difficulties = ["Avancé"] * len(self.ai_difficulties)
                 elif key == "diff_all_difficile":
                     self.ai_difficulties = ["Difficile"] * len(self.ai_difficulties)
                 elif key == "btn_continue":
@@ -1030,6 +1199,16 @@ class Game:
                 if key.startswith("buy_") and self.state == GameState.EXPLORING:
                     self.buy_component(key[len("buy_"):])
                     return
+                if key.startswith("bank_deposit_") and self.state == GameState.EXPLORING:
+                    pct = float(key.split("_")[-1]) / 100.0
+                    amount = self.player.inventory.gold * pct
+                    if amount > 0:
+                        self.player.inventory.gold -= amount
+                        self.faction_banks[0] += amount
+                        self.flash_message(f"Déposé : {int(amount)} or", f"Nouveau solde banque de faction : {int(self.faction_banks[0])} or", duration=2.5)
+                    else:
+                        self.flash_message("Tu n'as pas d'or à déposer.")
+                    return
                 if key.startswith("craft_") and self.state == GameState.EXPLORING:
                     self.craft_unit(key[len("craft_"):])
                     return
@@ -1079,6 +1258,15 @@ class Game:
                     self.restart_game() if key == "btn_restart" else self.go_to_menu()
                     return
 
+        if self.pending_mercy_choice:
+            for key in ("mercy_opt_1", "mercy_opt_2", "mercy_opt_3"):
+                rect = self.renderer.rects.get(key)
+                if rect and rect.collidepoint(pos):
+                    opt = int(key.split("_")[-1])
+                    self.pending_mercy_choice = False
+                    self.apply_mercy_blessing(0, opt)
+                    return
+
         if self.state == GameState.COMBAT:
             self.combat_click_attack(pos)
             return
@@ -1089,7 +1277,40 @@ class Game:
         if cell:
             self.on_cell_pressed(*cell)
 
-    # ------------------------------------------------------------------
+    def _update_auto_shift_dir(self, now):
+        """Mode permanent Shift + direction : mine en continu et avance dans la direction."""
+        if self.state != GameState.EXPLORING or not self.auto_shift_dir:
+            return
+        drow, dcol = self.auto_shift_dir
+        target_row = self.player.row + drow
+        target_col = self.player.col + dcol
+        if target_row < 0 or not (0 <= target_col < config.GRID_COLS):
+            self.auto_shift_dir = None
+            return
+        if self._ascent_blocked(target_row):
+            self._warn_ascent()
+            self.auto_shift_dir = None
+            return
+        if self.is_depth_blocked_by_boss(target_row):
+            self.start_depth_boss_battle((target_row // 1000) * 1000, 0)
+            self.auto_shift_dir = None
+            return
+        block = self.world.get_block(target_row, target_col)
+
+        if block.is_empty:
+            self.try_move_zqsd(drow, dcol)
+            self.last_hit_time = 0.0
+            return
+
+        if block.contains_monster:
+            self.start_combat(block)
+            return
+
+        self.is_mining_active = True
+        if now - self.last_hit_time >= self._attack_interval(now):
+            self.last_hit_time = now
+            self.apply_hit(target_row, target_col)
+
     def update(self):
         now = time.time()
         dt = min(0.05, now - self.last_frame_time)
@@ -1110,8 +1331,47 @@ class Game:
 
         self.particles.update(dt)
         self.audio.update_atmosphere(self.player.row)
+
+        # Événement 'Grille commune' toutes les 8 minutes (480 s)
+        if not self.joint_grid_active:
+            self.joint_grid_timer += dt
+            if self.joint_grid_timer >= 480.0:
+                self.start_joint_grid_event()
+        else:
+            self.update_joint_grid_event(dt)
+
+        # Bénédiction du Dieu de la Pitié toutes les 15 minutes (900 s)
+        self.mercy_god_timer += dt
+        if self.mercy_god_timer >= 900.0:
+            self.mercy_god_timer = 0.0
+            scores = {0: self._stat_values_player()["score"], 1: 0.0, 2: 0.0, 3: 0.0}
+            for ai in self.competitors:
+                scores[ai.team] = scores.get(ai.team, 0.0) + ai.score()
+            lowest_team = min(scores.keys(), key=lambda t: scores[t])
+            if lowest_team == 0:
+                self.pending_mercy_choice = True
+            else:
+                opt = random.choice([1, 2, 3])
+                self.apply_mercy_blessing(lowest_team, opt)
+
+        # Banque de faction : génération d'or continu (0.025% par seconde à chaque membre)
+        for t in range(4):
+            bal = self.faction_banks.get(t, 0.0)
+            if bal > 0:
+                gen = bal * config.BANK_INTEREST_RATE * dt
+                if t == 0:
+                    self.player.inventory.gold += gen
+                for ai in self.competitors:
+                    if ai.team == t:
+                        ai.inventory.gold += gen
+
         for ai in self.competitors:
             ai.tick(dt)
+            if random.random() < 0.05 * dt and ai.inventory.gold > 200:
+                dep = ai.inventory.gold * 0.1
+                ai.inventory.gold -= dep
+                self.faction_banks[ai.team] += dep
+
         self._update_ai_wars(dt)
         self._process_level_ups()
 
@@ -1142,8 +1402,10 @@ class Game:
             mods = pygame.key.get_mods()
             alt_held = bool(mods & pygame.KMOD_ALT)
 
-            if alt_held:
+            if self.auto_alt_mining or alt_held:
                 self._update_alt_mining(now)
+            elif self.auto_shift_dir:
+                self._update_auto_shift_dir(now)
             elif self.mouse_down and self.mining_cell:
                 if self.hover_cell != self.mining_cell:
                     self.mining_cell = None
@@ -1173,6 +1435,11 @@ class Game:
             "cooldown_left": max(0.0, self.war_cooldown.get("Toi", 0) - now),
             "shields": {n: v - now for n, v in self.war_shield.items() if v > now},
         }
+        self.renderer.joint_grid_info = {
+            "active": self.joint_grid_active,
+            "time_left": self.joint_grid_time_left,
+            "points": self.joint_grid_points,
+        }
         self.renderer.draw_side_panel(self.player, self.stones, self.artifacts, self.competitive_ai, self.competitors)
 
         if self.message and time.time() < self.message_until:
@@ -1193,6 +1460,9 @@ class Game:
         if self.show_chart:
             self.renderer.draw_chart(self.history_time, self.history, self.chart_visible,
                                       self.chart_stat, self.player, self.competitors)
+
+        if self.pending_mercy_choice:
+            self.renderer.draw_mercy_dialog()
 
         pygame.display.flip()
 

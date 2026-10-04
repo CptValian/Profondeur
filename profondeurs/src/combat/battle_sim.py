@@ -56,6 +56,17 @@ class Unit:
             self.ranged = r.range > MELEE_MAX_RANGE
             self.attack_type = getattr(r, "attack_type", "physical")
             self.armor_type = getattr(r, "armor_type", "light")
+        elif rid.startswith("depth_boss"):
+            level = int(rid.split("_")[-1]) if "_" in rid else 1
+            self.hp = self.max_hp = 8000.0 * level
+            self.atk = 60.0 * level
+            self.defense = 15.0 * level
+            self.range = 80.0
+            self.speed = 40.0
+            self.interval = 1.2
+            self.ranged = False
+            self.attack_type = "heavy"
+            self.armor_type = "heavy"
         else:
             self.hp = self.max_hp = 100.0
             self.atk = 10.0
@@ -84,7 +95,7 @@ class Projectile:
 
 
 class BattleSim:
-    def __init__(self, att_units: dict, def_units: dict, tower_levels: dict, hero=None, rng=None, record_events=False):
+    def __init__(self, att_units: dict, def_units: dict, tower_levels: dict, hero=None, rng=None, record_events=False, tower_hp_permanent_bonus=0.0):
         self.rng = rng or random.Random()
         self.time = 0.0
         self.units = []
@@ -96,7 +107,7 @@ class BattleSim:
         self.hero = hero
         self.hero_damage_dealt = 0.0
         self.hero_damage_taken = 0.0
-        self.tower_stats = tower_mod.stats(tower_levels)
+        self.tower_stats = tower_mod.stats(tower_levels, permanent_hp_bonus=tower_hp_permanent_bonus)
         self.att_start = {rid: n for rid, n in att_units.items() if n > 0 and rid in crafting.RECIPES_BY_ID}
         self.def_start = {rid: n for rid, n in def_units.items() if n > 0 and rid in crafting.RECIPES_BY_ID}
         uid = 0
@@ -130,7 +141,7 @@ class BattleSim:
         t.rid, t.is_tower = "tower", True
         t.hp = t.max_hp = float(self.tower_stats["hp"])
         t.defense, t.atk, t.range, t.speed, t.ranged = config.TOWER_DEFENSE, 0, self.tower_stats["range"], 0, True
-        t.interval = 1.0 / self.tower_stats["speed"]
+        t.interval = 1.0 / self.tower_stats["speed"] if self.tower_stats["speed"] > 0 else 1.0
         t.cd = t.interval
         self.tower = t
         self.units.append(t)

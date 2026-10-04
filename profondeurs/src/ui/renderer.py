@@ -1503,7 +1503,13 @@ class Renderer:
         label = self.font.render(label_txt, True, (220, 215, 205))
         self.screen.blit(label, (self.W // 2 - label.get_width() // 2, 108))
 
-        diff_color = {"Facile": (90, 160, 100), "Normal": (150, 140, 70), "Difficile": (170, 70, 70)}
+        diff_color = {
+            "Facile": (90, 160, 100),
+            "Modéré": (110, 150, 120),
+            "Normal": (150, 140, 70),
+            "Avancé": (160, 100, 70),
+            "Difficile": (170, 70, 70),
+        }
 
         # regroupement par équipe, 4 colonnes
         cols = 4
@@ -1551,17 +1557,19 @@ class Renderer:
                 self.rects[key] = r
         else:
             quick_label = self.font_tiny.render("Réglage rapide :", True, (170, 165, 180))
-            self.screen.blit(quick_label, (self.W // 2 - 210, quick_y + 12))
-            qx = self.W // 2 - 60
+            self.screen.blit(quick_label, (self.W // 2 - 380, quick_y + 12))
+            qx = self.W // 2 - 240
             for key, label, color in (("diff_all_facile", "Tout Facile", (90, 160, 100)),
+                                       ("diff_all_modere", "Tout Modéré", (110, 150, 120)),
                                        ("diff_all_normal", "Tout Normal", (150, 140, 70)),
+                                       ("diff_all_avance", "Tout Avancé", (160, 100, 70)),
                                        ("diff_all_difficile", "Tout Difficile", (170, 70, 70))):
-                r = pygame.Rect(qx, quick_y, 150, 30)
+                r = pygame.Rect(qx, quick_y, 110, 30)
                 pygame.draw.rect(self.screen, color, r, border_radius=6)
                 t = self.font_tiny.render(label, True, (255, 255, 255))
                 self.screen.blit(t, (r.centerx - t.get_width() // 2, r.centery - t.get_height() // 2))
                 self.rects[key] = r
-                qx += 158
+                qx += 116
 
             btn_w = 340 if has_save else 260
             btn_start = pygame.Rect(self.W // 2 - btn_w // 2, quick_y + 50, btn_w, 54)

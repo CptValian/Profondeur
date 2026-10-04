@@ -14,6 +14,7 @@ class Inventory:
         self.components_seen = set()         # composants déjà découverts (pour le menu)
         self.units = defaultdict(int)        # recipe_id -> nombre de troupes/défenses fabriquées
         self.tower = tower_mod.default_levels()   # niveaux du donjon d'archer
+        self.tower_hp_permanent_bonus = 0.0       # bonus permanent de PV du donjon suite à pillage
         self.war_wins = 0                    # victoires en guerre (attaque ou défense réussie)
         self.xp_stones = 0                   # pierres d'XP passives pour le niveau principal
 
