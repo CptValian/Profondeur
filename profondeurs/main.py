@@ -356,7 +356,7 @@ class Game:
             self.grant_artifact(artifact_id)
             got_artifact = True
 
-        self.try_component_drop(block.depth, config.COMPONENT_DROP_CHANCE, announce=not got_artifact)
+        self.try_component_drop(block.depth, config.COMPONENT_DROP_CHANCE, announce=not got_artifact, hardness=block.hardness)
 
         self.mining_cell = None
 
@@ -415,8 +415,8 @@ class Game:
         title = f"Niveau {lv} !" if len(levels) == 1 else f"Niveau {lv} ! (+{len(levels)} niveaux)"
         self.flash_message(title, sub, duration=4.5)
 
-    def try_component_drop(self, depth, chance, announce=True):
-        cid = crafting.roll_component(depth, random, chance, self.player.bonus_component_luck)
+    def try_component_drop(self, depth, chance, announce=True, hardness=1.0):
+        cid = crafting.roll_component(depth, random, chance, self.player.bonus_component_luck, hardness=hardness)
         if not cid:
             return None
         self.player.inventory.add_component(cid)

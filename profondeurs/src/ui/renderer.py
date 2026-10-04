@@ -569,23 +569,30 @@ class Renderer:
 
         m = equip._level_mult()
         col_hdr = (190, 185, 200)
-        self.screen.blit(self.font_tiny.render(f"Palier (acheté) x niveau {equip.level} (x{m:.2f})  =  bonus total", True, col_hdr),
+        self.screen.blit(self.font_tiny.render(f"Palier x niveau {equip.level} (x{m:.2f}) + bonus plat = bonus total", True, col_hdr),
                          (content.x, y)); y += 18
         kind = self.active_equip
         rows = []
         if kind == "helmet":
-            rows.append(("PV max", f"+{equip.base_bonus:.0f}", f"+{equip.effective_bonus:.1f}"))
-            rows.append(("Régénération", f"{equip.data['regen']:.2f}/s", f"{equip.effective_regen:.3f}/s"))
+            flat_hp = equip.flat_bonus()
+            flat_rg = equip.flat_bonus("regen")
+            rows.append(("PV max", f"+{equip.base_bonus:.0f}", f"+{flat_hp:.1f} plat", f"+{equip.effective_bonus:.1f}"))
+            rows.append(("Régénération", f"{equip.data['regen']:.2f}/s", f"+{flat_rg:.3f}/s plat", f"{equip.effective_regen:.3f}/s"))
         elif kind == "amulet":
-            rows.append(("Régénération", f"{equip.data['regen']:.2f}/s", f"{equip.effective_regen:.3f}/s"))
+            flat_rg = equip.flat_bonus("regen")
+            rows.append(("Régénération", f"{equip.data['regen']:.2f}/s", f"+{flat_rg:.3f}/s plat", f"{equip.effective_regen:.3f}/s"))
         elif kind == "armor":
-            rows.append(("Dégâts reçus", f"-{equip.base_bonus * 100:.1f}%", f"-{equip.effective_bonus * 100:.2f}%"))
+            flat_arm = equip.flat_bonus()
+            rows.append(("Dégâts reçus", f"-{equip.base_bonus * 100:.1f}%", f"-{flat_arm * 100:.2f}% plat", f"-{equip.effective_bonus * 100:.2f}%"))
         elif kind == "aura":
-            rows.append(("Or gagné", f"+{equip.base_bonus * 100:.1f}%", f"+{equip.effective_bonus * 100:.2f}%"))
+            flat_aur = equip.flat_bonus()
+            rows.append(("Or gagné", f"+{equip.base_bonus * 100:.1f}%", f"+{flat_aur * 100:.2f}% plat", f"+{equip.effective_bonus * 100:.2f}%"))
         else:
-            rows.append(("Dégâts vs monstres", f"+{equip.base_bonus:.0f}", f"+{equip.effective_bonus:.1f}"))
-        for label, base_v, total_v in rows:
-            line = self.font_small.render(f"{label} : {base_v} -> {total_v}", True, (220, 220, 220))
+            flat_gt = equip.flat_bonus()
+            rows.append(("Dégâts vs monstres", f"+{equip.base_bonus:.0f}", f"+{flat_gt:.1f} plat", f"+{equip.effective_bonus:.1f}"))
+        for row_info in rows:
+            label, base_v, flat_v, total_v = row_info
+            line = self.font_small.render(f"{label} : {base_v} ({flat_v}) -> {total_v}", True, (220, 220, 220))
             self.screen.blit(line, (content.x, y)); y += 22
         mine_line = self.font_tiny.render(
             f"+ {(equip.level - 1) * config.ITEM_LEVEL_MINING_BONUS * 100:.2f}% de puissance de minage (en plus du bonus ci-dessus)",

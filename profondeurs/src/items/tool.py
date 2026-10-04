@@ -27,7 +27,8 @@ class Tool:
     @property
     def power(self) -> float:
         base = self.data["power"]
-        return base * (1 + (self.level - 1) * config.TOOL_LEVEL_POWER_BONUS)
+        flat_bonus = (self.level - 1) * getattr(config, "TOOL_LEVEL_FLAT_POWER_BONUS", 0.5)
+        return base * (1 + (self.level - 1) * config.TOOL_LEVEL_POWER_BONUS) + flat_bonus
 
     @property
     def speed(self) -> float:

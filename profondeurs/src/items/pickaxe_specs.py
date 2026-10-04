@@ -24,7 +24,35 @@ DKMETAL = ((110, 112, 128), (70, 72, 86), (34, 36, 48))
 SILVER = ((250, 252, 255), (200, 206, 222), (130, 138, 164))
 GOLDH = ((255, 240, 160), (232, 186, 66), (140, 96, 22))
 
+ROTTEN_WOOD = ((140, 110, 80), (100, 72, 46), (56, 36, 20))
+PALE_WOOD = ((200, 180, 140), (150, 130, 95), (90, 75, 50))
+STRAW_ROPE = ((210, 190, 130), (160, 140, 85), (100, 85, 45))
+RUSTY_METAL = ((180, 110, 80), (130, 70, 45), (75, 38, 22))
+
 PICKAXE_SPECS = [
+    # --- 10 nouveaux paliers vertigineusement faibles et pitoyables (1 à 10) ---
+    _p("Bâton de bois vermoulu", "Un simple bâton creux trouvé par terre. Il menace de casser à la moindre pierre.",
+       ((150, 120, 90), (100, 72, 46), (56, 36, 20), (170, 140, 105)), ROTTEN_WOOD, "wood", "wood", ["crack"], span=100, thick=38),
+    _p("Branche fourchue effilochée", "Une branche tordue en fourche, à peine aiguisée contre un caillou.",
+       ((170, 140, 100), (118, 88, 52), (68, 46, 26), (190, 155, 115)), ROTTEN_WOOD, "wood", "wood", ["crack"], span=110, thick=42),
+    _p("Pieu de bois calciné", "Le bout a été durci au feu, mais c'est surtout du charbon effritable.",
+       ((110, 90, 80), (60, 48, 42), (32, 24, 20), (140, 120, 110)), DKWOOD, "wood", "flint", ["crack"]),
+    _p("Tige de bambou fendu", "Une tige de bambou effilée qui plie affreusement à chaque impact.",
+       ((180, 200, 130), (130, 150, 85), (75, 95, 45), (200, 220, 150)), PALE_WOOD, "wood", "flint", ["rope"]),
+    _p("Silex brut mal ficelé", "Un caillou coupant attaché à un bout de bois avec de l'herbe séchée.",
+       ((160, 150, 140), (105, 98, 90), (58, 52, 48), (185, 175, 165)), STRAW_ROPE, "wood", "flint", ["rope"], span=130),
+    _p("Piquet d'enclos pointu", "Un piquet arraché à une barrière, à peine taillé en pointe.",
+       ((185, 148, 105), (135, 96, 60), (80, 52, 30), (205, 168, 125)), WOOD, "wood", "wood", ["rope", "crack"], thick=48),
+    _p("Clou rouillé sur manche", "Un gros clou tordu enfiché dans une branchette.",
+       ((175, 105, 75), (125, 65, 40), (70, 34, 18), (195, 125, 90)), RUSTY_METAL, "wood", "flint", ["rope", "crack"]),
+    _p("Os de rongeur ébréché", "Un petit os pointu, fragile et un peu dégoûtant.",
+       ((240, 230, 205), (200, 185, 155), (140, 128, 100), (250, 242, 220)), BONE, "bone", "pick", ["crack"], span=140, thick=46),
+    _p("Cerclage de tonneau plié", "Un morceau de fer de tonneau plié en deux, souple et bancal.",
+       ((165, 155, 150), (110, 102, 98), (62, 56, 52), (185, 175, 170)), DKWOOD, "wrap", "adze", ["rope"]),
+    _p("Grattoir en pierre friable", "Une pierre tendre qui s'effrite presque aussi vite que la roche minée.",
+       ((180, 175, 170), (128, 122, 118), (75, 70, 68), (200, 195, 190)), WOOD, "wood", "stone", ["speckle", "crack"]),
+
+    # --- Ancien niveau 1 devenu niveau 11 (et suivants jusqu'à 60) ---
     _p("Éclat de silex fendu", "Un simple éclat de silex lié à un bout de bois fendu.",
        ((176, 166, 154), (118, 110, 102), (66, 60, 58), (206, 196, 180)), WOOD, "wood", "flint", ["rope", "crack"]),
     _p("Pioche de bois fissuré", "Le manche se fissure un peu plus à chaque coup, mais tient encore.",
@@ -168,4 +196,4 @@ PICKAXE_SPECS = [
        "white", "winged", ["prism", "feathers", "halo", "corona", "astrolabe", "inlay"], glow=(255, 255, 255),
        gem=(255, 255, 255), fx="rainbow", span=232),
 ]
-assert len(PICKAXE_SPECS) == 50
+assert len(PICKAXE_SPECS) == 60

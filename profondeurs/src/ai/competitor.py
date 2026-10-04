@@ -266,11 +266,25 @@ class AIMiner:
                     return
         self._try_tower_upgrade()
 
+    @property
+    def level(self) -> int:
+        """Niveau équivalent du mineur IA calculé à partir de l'XP de sa pioche."""
+        l = 1
+        xp = getattr(self.tool, "total_xp", lambda: self.tool.xp)()
+        while l < config.PLAYER_MAX_LEVEL and xp >= config.PLAYER_XP_BASE * (l ** config.PLAYER_XP_EXPONENT):
+            xp -= config.PLAYER_XP_BASE * (l ** config.PLAYER_XP_EXPONENT)
+            l += 1
+        return l
+
     def _try_tower_upgrade(self):
         """Quand la pioche attend trop cher, les IA prudentes investissent dans leur donjon d'archer."""
         if self.rng.random() > 0.35 * (1.2 - self.risk_tolerance):
             return
-        key = self.rng.choice([k for k in tower_mod.TRACKS if k != "supreme"])
+        available_tracks = [
+            k for k in tower_mod.TRACKS
+            if k != "supreme" or self.level >= config.TOWER_TRACK_UNLOCK.get("supreme", 30)
+        ]
+        key = self.rng.choice(available_tracks)
         cost = tower_mod.upgrade_cost(self.inventory.tower, key)
         if cost >= 0 and self.inventory.gold >= cost * (1.5 + self.upgrade_readiness):
             tower_mod.upgrade(self.inventory, key)
@@ -312,8 +326,8 @@ class AIMiner:
             self._apply_artifact(self.artifacts.defs[artifact_id])
 
     # ------------------------------------------------------------------
-    def _roll_component(self, depth, chance):
-        cid = crafting.roll_component(depth, self.rng, chance, self.state.component_luck)
+    def _roll_component(self, depth, chance, hardness=1.0):
+        cid = crafting.roll_component(depth, self.rng, chance, self.state.component_luck, hardness=hardness)
         if cid:
             self.inventory.add_component(cid)
             self._try_craft()
@@ -432,7 +446,7 @@ class AIMiner:
                     aid, self.artifact_pity = self.artifacts.resolve_drop(
                         block.contains_artifact, block.depth, self.artifact_pity, 0.0, self.rng)
                     self._grant_artifact(aid)
-                self._roll_component(block.depth, config.COMPONENT_DROP_CHANCE)
+                self._roll_component(block.depth, config.COMPONENT_DROP_CHANCE, hardness=block.hardness)
                 self.target_cell = None
                 self._try_upgrade()
 
