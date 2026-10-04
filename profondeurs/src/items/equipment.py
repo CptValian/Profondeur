@@ -150,6 +150,11 @@ class Aura(Equipment):
     def __init__(self, tier: int = 0):
         super().__init__(config.AURA_TIERS, tier)
 
+    def upgrade_cost(self) -> int:
+        if self.is_max_tier:
+            return -1
+        return int(config.UPGRADE_BASE_COST * 8.0 * (3.0 ** self.tier))
+
 
 class Amulet(Equipment):
     """Bonus : régénération de PV passive dédiée. S'xp en régénérant réellement des PV

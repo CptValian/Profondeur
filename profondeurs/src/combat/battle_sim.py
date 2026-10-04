@@ -39,23 +39,34 @@ SUPREME_PERIOD = 10.0             # renforts / pluie de flèches toutes les 10 s
 
 class Unit:
     __slots__ = ("uid", "side", "rid", "x", "lane", "hp", "max_hp", "atk", "defense", "range", "speed",
-                 "interval", "cd", "alive", "state", "attack_t", "hurt_t", "dead_t", "is_tower", "ranged",
+                 "interval", "cd", "alive", "state", "attack_t", "hurt_t", "dead_t", "is_tower", "is_hero", "ranged",
                  "burn_t", "burn_dps", "summoned")
 
     def __init__(self, uid, side, rid, x, lane, rng):
         self.uid, self.side, self.rid, self.x, self.lane = uid, side, rid, x, lane
-        r = crafting.RECIPES_BY_ID[rid]
-        self.hp = self.max_hp = float(r.health)
-        self.atk, self.defense, self.range, self.speed, self.interval = r.attack, r.defense, r.range, r.speed, r.interval
-        self.cd = rng.uniform(0, r.interval)
-        self.alive = True
-        self.state = "idle"
-        self.attack_t = self.hurt_t = self.dead_t = -99.0
         self.is_tower = False
-        self.ranged = r.range > MELEE_MAX_RANGE
+        self.is_hero = False
         self.burn_t = 0.0
         self.burn_dps = 0.0
         self.summoned = False
+        self.uid, self.side, self.rid, self.x, self.lane = uid, side, rid, x, lane
+        if rid in crafting.RECIPES_BY_ID:
+            r = crafting.RECIPES_BY_ID[rid]
+            self.hp = self.max_hp = float(r.health)
+            self.atk, self.defense, self.range, self.speed, self.interval = r.attack, r.defense, r.range, r.speed, r.interval
+            self.ranged = r.range > MELEE_MAX_RANGE
+        else:
+            self.hp = self.max_hp = 100.0
+            self.atk = 10.0
+            self.defense = 0.0
+            self.range = 50.0
+            self.speed = 100.0
+            self.interval = 1.0
+            self.ranged = False
+        self.cd = rng.uniform(0, self.interval)
+        self.alive = True
+        self.state = "idle"
+        self.attack_t = self.hurt_t = self.dead_t = -99.0
 
 
 class Projectile:
@@ -69,7 +80,7 @@ class Projectile:
 
 
 class BattleSim:
-    def __init__(self, att_units: dict, def_units: dict, tower_levels: dict, rng=None, record_events=False):
+    def __init__(self, att_units: dict, def_units: dict, tower_levels: dict, hero=None, rng=None, record_events=False):
         self.rng = rng or random.Random()
         self.time = 0.0
         self.units = []
@@ -78,10 +89,29 @@ class BattleSim:
         self.record = record_events
         self.finished = False
         self.attacker_won = False
+        self.hero = hero
+        self.hero_damage_dealt = 0.0
+        self.hero_damage_taken = 0.0
         self.tower_stats = tower_mod.stats(tower_levels)
         self.att_start = {rid: n for rid, n in att_units.items() if n > 0 and rid in crafting.RECIPES_BY_ID}
         self.def_start = {rid: n for rid, n in def_units.items() if n > 0 and rid in crafting.RECIPES_BY_ID}
         uid = 0
+
+        # Si l'attaquant possède le Héros
+        if self.hero is not None:
+            hu = Unit(uid, "att", "hero", ATT_FRONT - 10, 0, self.rng)
+            hu.is_hero = True
+            hu.hp = hu.max_hp = float(self.hero.max_hp)
+            hu.atk = float(self.hero.attack_damage)
+            hu.defense = float(self.hero.armor)
+            hu.interval = float(self.hero.attack_interval)
+            hu.range = 50.0
+            hu.speed = 100.0
+            hu.ranged = False
+            hu.cd = 0.1
+            self.units.append(hu)
+            uid += 1
+
         for side, start, front, sign in (("att", self.att_start, ATT_FRONT, -1), ("def", self.def_start, DEF_FRONT, 1)):
             roster = []
             for rid, n in start.items():
@@ -128,16 +158,22 @@ class BattleSim:
         if not u.alive:
             return
         u.hp -= amount
+        if getattr(u, "is_hero", False):
+            self.hero_damage_taken += amount
         if u.hp <= 0:
             u.alive = False
             u.dead_t = self.time
 
-    def _hit(self, target, raw, src_side, fire=False):
+    def _hit(self, target, raw, src_side, fire=False, src_unit=None):
         if not target.alive:
             return
         dmg = raw * self.rng.uniform(0.85, 1.15) * 100.0 / (100.0 + config.WAR_DEFENSE_FACTOR * target.defense)
         target.hp -= dmg
         target.hurt_t = self.time
+        if src_unit and getattr(src_unit, "is_hero", False):
+            self.hero_damage_dealt += dmg
+        if getattr(target, "is_hero", False):
+            self.hero_damage_taken += dmg
         if fire and not target.is_tower and target.side == "att":
             target.burn_t = BURN_TIME
             target.burn_dps = max(target.burn_dps, 0.5 * self.tower_stats["damage"])
@@ -188,7 +224,7 @@ class BattleSim:
                         dur = max(0.15, dist / ARROW_SPEED)
                         self.projectiles.append(Projectile(u.x, tgt, u.atk, dur, False, u.side, 30.0))
                     else:
-                        self._hit(tgt, u.atk, u.side)
+                        self._hit(tgt, u.atk, u.side, src_unit=u)
             elif u.side == "att" or dist <= AGGRO:
                 step = min(u.speed * dt, dist - u.range + 0.5)
                 u.x += step if tgt.x > u.x else -step

@@ -15,6 +15,7 @@ class Block:
     resource_amount: int = 1
     contains_artifact: Optional[str] = None
     contains_monster: bool = False
+    contains_xp_stone: bool = False
     max_health: float = 1.0
     health: float = 1.0
 

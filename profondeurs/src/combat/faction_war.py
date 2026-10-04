@@ -63,11 +63,11 @@ class BattleReport:
         return txt
 
 
-def start_battle(att_inv, def_inv, rng=None, record_events=False) -> BattleSim:
-    return BattleSim(dict(att_inv.units), dict(def_inv.units), dict(def_inv.tower), rng, record_events)
+def start_battle(att_inv, def_inv, hero=None, rng=None, record_events=False) -> BattleSim:
+    return BattleSim(dict(att_inv.units), dict(def_inv.units), dict(def_inv.tower), hero=hero, rng=rng, record_events=record_events)
 
 
-def finalize_battle(sim: BattleSim, att_name, att_inv, def_name, def_inv, def_items=None, rng=None) -> BattleReport:
+def finalize_battle(sim: BattleSim, att_name, att_inv, def_name, def_inv, def_items=None, hero=None, rng=None) -> BattleReport:
     """Applique le résultat de la simulation : pertes définitives, butin, point de guerre."""
     a_loss = {rid: n - sim.survivors("att").get(rid, 0) for rid, n in sim.att_start.items()}
     d_loss = {rid: n - sim.survivors("def").get(rid, 0) for rid, n in sim.def_start.items()}
@@ -79,6 +79,9 @@ def finalize_battle(sim: BattleSim, att_name, att_inv, def_name, def_inv, def_it
         def_inv.units[rid] = max(0, def_inv.units[rid] - n)
     loot = 0.0
     broken = ""
+    if hero is not None:
+        hero.on_battle_completed(sim.hero_damage_dealt, sim.hero_damage_taken)
+
     if sim.attacker_won:
         loot = max(0.0, def_inv.gold * config.WAR_LOOT_RATIO)
         def_inv.gold -= loot

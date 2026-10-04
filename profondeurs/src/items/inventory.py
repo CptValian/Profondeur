@@ -15,6 +15,7 @@ class Inventory:
         self.units = defaultdict(int)        # recipe_id -> nombre de troupes/défenses fabriquées
         self.tower = tower_mod.default_levels()   # niveaux du donjon d'archer
         self.war_wins = 0                    # victoires en guerre (attaque ou défense réussie)
+        self.xp_stones = 0                   # pierres d'XP passives pour le niveau principal
 
     def add_resource(self, stone_id: str, amount: int = 1):
         self.resources[stone_id] += amount
