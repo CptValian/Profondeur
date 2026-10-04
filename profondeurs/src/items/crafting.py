@@ -68,9 +68,12 @@ RECIPES = [
 RECIPES_BY_ID = {r.recipe_id: r for r in RECIPES}
 
 
-def roll_component(depth: int, rng, chance: float, luck: float = 0.0) -> Optional[str]:
-    """Tire (ou non) un composant. rng : module random ou random.Random."""
-    if rng.random() >= min(1.0, chance * (1 + luck)):
+def roll_component(depth: int, rng, chance: float, luck: float = 0.0, hardness: float = 1.0) -> Optional[str]:
+    """Tire (ou non) un composant. Plus la pierre est dure à casser, plus le taux de drop de composants est élevé."""
+    # Multiplicateur de dureté : les roches plus dures (hardness > 1) augmentent la chance de drop
+    hardness_mult = max(1.0, 1.0 + (hardness - 1.0) * 0.15)
+    effective_chance = min(1.0, chance * (1 + luck) * hardness_mult)
+    if rng.random() >= effective_chance:
         return None
     eligible = [c for c in COMPONENT_DEFS if c.min_depth <= depth]
     if not eligible:

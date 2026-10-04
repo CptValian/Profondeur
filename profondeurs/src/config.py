@@ -90,14 +90,17 @@ LEVEL_UNLOCK_TEXT = {
 # power = dégâts par coup, speed = coups par seconde en maintenant le clic.
 from src.items.pickaxe_specs import PICKAXE_SPECS
 
-# 40 paliers : puissance exponentielle douce, cadence quasi linéaire.
+# 60 paliers : les 10 premiers (0 à 9) sont extrêmement faibles, le palier 11 (index 10) correspond au palier 1 historique.
 # Les champs "head/head2/handle/glow" restent exposés pour l'interface ; "art" décrit le rendu.
 TOOL_TIERS = []
 for _i, _spec in enumerate(PICKAXE_SPECS):
+    rel_i = _i - 10
+    power_v = round(1.4 * (1.15 ** rel_i), 1) if rel_i >= 0 else max(0.2, round(1.4 * (1.15 ** rel_i), 1))
+    speed_v = round(1.55 + 0.13 * rel_i, 2) if rel_i >= 0 else max(0.5, round(1.55 + 0.10 * rel_i, 2))
     TOOL_TIERS.append({
         "name": _spec["name"], "skin": _spec["skin"],
-        "power": round(1.4 * (1.15 ** _i), 1),
-        "speed": round(1.55 + 0.13 * _i, 2),
+        "power": power_v,
+        "speed": speed_v,
         "head": _spec["mat"][1], "head2": _spec["mat"][0], "handle": _spec["handle"][1],
         "glow": _spec["glow"], "art": _spec,
     })
@@ -115,14 +118,26 @@ TOOL_MAX_LEVEL = 100
 TOOL_XP_BASE = 200            # XP pour passer du niveau 1 au niveau 2
 TOOL_XP_EXPONENT = 1.6        # XP requise = BASE * niveau ** EXPONENT
 TOOL_XP_PER_DAMAGE = 0.25     # XP gagnée par point de dégât infligé aux blocs
-TOOL_LEVEL_POWER_BONUS = 0.015  # +1,5 % de dégâts par niveau
-TOOL_LEVEL_SPEED_BONUS = 0.003  # +0,3 % de cadence par niveau
+TOOL_LEVEL_POWER_BONUS = 0.035  # +3,5 % de dégâts par niveau
+TOOL_LEVEL_SPEED_BONUS = 0.008  # +0,8 % de cadence par niveau
+TOOL_LEVEL_FLAT_POWER_BONUS = 0.5 # +0,5 dégâts plats par niveau
 
 # --- Niveaux des équipements (casque/armure/aura), même principe que la pioche ---
 EQUIP_MAX_LEVEL = 100
 EQUIP_XP_BASE = 150
 EQUIP_XP_EXPONENT = 1.55
-EQUIP_LEVEL_BONUS = 0.015     # +1,5 % du/des bonus par niveau
+EQUIP_LEVEL_BONUS_PCT = 0.025 # +2,5 % du bonus de palier par niveau
+EQUIP_LEVEL_BONUS = 0.025     # rétrocompatibilité
+
+# Bonus plats accordés par chaque niveau d'expérience d'équipement
+EQUIP_LEVEL_FLAT_BONUS = {
+    "helmet": 1.5,      # +1,5 PV max plats par niveau
+    "helmet_regen": 0.008, # +0.008 PV/s plats par niveau
+    "armor": 0.0015,    # +0,15 % de réduction plate par niveau
+    "aura": 0.002,      # +0,2 % d'or plat par niveau
+    "amulet_regen": 0.012, # +0.012 PV/s plats par niveau
+    "gauntlet": 0.5,    # +0,5 dégâts plats vs monstres par niveau
+}
 
 # Sources d'XP des équipements de survie :
 ARMOR_XP_PER_DAMAGE_REDUCED = 1.0   # l'armure s'xp sur les dégâts qu'elle a annulés
@@ -130,68 +145,118 @@ HELMET_XP_PER_DAMAGE_TAKEN = 1.0    # le casque s'xp sur les dégâts réellemen
 AMULET_XP_PER_HP_REGEN = 4.0        # l'amulette s'xp en régénérant réellement des PV
 
 HELMET_TIERS = [
-    {"name": "Casque de cuir",     "bonus": 10, "regen": 0.05, "color": (140, 100, 70),
+    {"name": "Casque de cuir",        "bonus": 10,  "regen": 0.05, "color": (140, 100, 70),
      "glow": None, "skin": "Un casque de cuir bouilli, cabossé mais solide."},
-    {"name": "Casque en fer",      "bonus": 22, "regen": 0.10, "color": (175, 178, 188),
-     "glow": None, "skin": "Renforcé de bandes de fer rivetées."},
-    {"name": "Casque runique",     "bonus": 38, "regen": 0.18, "color": (120, 160, 255),
-     "glow": (120, 160, 255), "skin": "Des symboles protecteurs y sont gravés."},
-    {"name": "Heaume abyssal",     "bonus": 60, "regen": 0.30, "color": (170, 90, 240),
-     "glow": (170, 90, 255), "skin": "Il semble regarder dans le noir à ta place."},
-    {"name": "Couronne stellaire", "bonus": 90, "regen": 0.48, "color": (255, 230, 140),
-     "glow": (255, 245, 180), "skin": "Un fragment d'étoile ceint ton front."},
+    {"name": "Casque de bronze",      "bonus": 16,  "regen": 0.08, "color": (205, 140, 75),
+     "glow": None, "skin": "Forgé dans un bronze patiné par les brumes des galeries."},
+    {"name": "Casque en fer",         "bonus": 22,  "regen": 0.10, "color": (175, 178, 188),
+     "glow": None, "skin": "Renforcé de bandes de fer rivetées et d'un nasal stoïque."},
+    {"name": "Heaume d'acier martelé","bonus": 30,  "regen": 0.14, "color": (210, 215, 225),
+     "glow": None, "skin": "De l'acier poli aux reflets miroitants qui détourne les éclats."},
+    {"name": "Casque runique",        "bonus": 38,  "regen": 0.18, "color": (120, 160, 255),
+     "glow": (120, 160, 255), "skin": "Des symboles protecteurs y sont gravés avec minutie."},
+    {"name": "Couronne de mithril",   "bonus": 48,  "regen": 0.23, "color": (170, 220, 255),
+     "glow": (160, 210, 255), "skin": "Étonnamment légère, filigranée d'argent elfique étincelant."},
+    {"name": "Heaume abyssal",        "bonus": 60,  "regen": 0.30, "color": (170, 90, 240),
+     "glow": (170, 90, 255), "skin": "Il semble regarder dans le noir à ta place avec des orbites luissantes."},
+    {"name": "Diadème solaire",       "bonus": 74,  "regen": 0.38, "color": (255, 190, 80),
+     "glow": (255, 200, 100), "skin": "Fabriqué dans un or solaire pulsant d'une chaleur rassurante."},
+    {"name": "Couronne stellaire",    "bonus": 90,  "regen": 0.48, "color": (255, 230, 140),
+     "glow": (255, 245, 180), "skin": "Un fragment d'étoile ceint ton front d'une aura magestueuse."},
+    {"name": "Tiare de la Genèse",    "bonus": 110, "regen": 0.60, "color": (255, 255, 255),
+     "glow": (240, 250, 255), "skin": "Une tiare mythique forgee dans l'aube du monde, repoussant le trépas."},
 ]
 
 ARMOR_TIERS = [
-    {"name": "Veste matelassée", "bonus": 0.04, "color": (110, 90, 70),
+    {"name": "Veste matelassée",    "bonus": 0.04, "color": (110, 90, 70),
      "glow": None, "skin": "Rembourrée de chiffons et de cuir tanné."},
-    {"name": "Cotte de mailles", "bonus": 0.09, "color": (170, 172, 182),
+    {"name": "Cuirasse de cuivre",  "bonus": 0.06, "color": (190, 120, 80),
+     "glow": None, "skin": "Des plaques de cuivre empilées protégeant les organes vitaux."},
+    {"name": "Cotte de mailles",    "bonus": 0.09, "color": (170, 172, 182),
      "glow": None, "skin": "Des anneaux de fer serrés, lourds mais fiables."},
-    {"name": "Plates runiques",  "bonus": 0.15, "color": (110, 150, 240),
-     "glow": (110, 150, 240), "skin": "Chaque plaque absorbe le choc en vibrant."},
-    {"name": "Carapace abyssale", "bonus": 0.23, "color": (160, 80, 230),
-     "glow": (160, 80, 230), "skin": "Une carapace organique venue des failles profondes."},
-    {"name": "Égide stellaire",  "bonus": 0.33, "color": (250, 225, 130),
+    {"name": "Harnois d'acier",     "bonus": 0.12, "color": (210, 215, 225),
+     "glow": None, "skin": "Une armure complète aux articulations d'acier articulées."},
+    {"name": "Plates runiques",     "bonus": 0.15, "color": (110, 150, 240),
+     "glow": (110, 150, 240), "skin": "Chaque plaque absorbe le choc en vibrant d'énergie bleutée."},
+    {"name": "Cotte en mithril",    "bonus": 0.19, "color": (160, 220, 250),
+     "glow": (150, 210, 255), "skin": "Resserrée comme de la soie mais impénétrable au fer."},
+    {"name": "Carapace abyssale",   "bonus": 0.23, "color": (160, 80, 230),
+     "glow": (160, 80, 230), "skin": "Une carapace organique venue des failles profondes qui absorbe l'impact."},
+    {"name": "Harnois draconique",  "bonus": 0.28, "color": (230, 80, 50),
+     "glow": (240, 100, 60), "skin": "Façonné à partir d'écailles de wyrm immortel, chaud au toucher."},
+    {"name": "Égide stellaire",     "bonus": 0.33, "color": (250, 225, 130),
      "glow": (255, 240, 170), "skin": "Elle dévie les coups comme la lumière dévie une étoile."},
+    {"name": "Bannière du Créateur", "bonus": 0.40, "color": (255, 255, 255),
+     "glow": (240, 250, 255), "skin": "Une armure weaver d'étoiles filantes rendant son porteur inébranlable."},
 ]
 
 AURA_TIERS = [
-    {"name": "Étincelle timide",  "bonus": 0.05, "color": (140, 220, 140),
+    {"name": "Étincelle timide",    "bonus": 0.05, "color": (140, 220, 140),
      "glow": (140, 220, 140), "skin": "Une faible lueur verte flotte autour de toi."},
-    {"name": "Aura cuivrée",      "bonus": 0.11, "color": (220, 150, 90),
+    {"name": "Aura cuivrée",        "bonus": 0.08, "color": (220, 150, 90),
      "glow": (220, 150, 90), "skin": "Elle crépite doucement à chaque coup de pioche."},
-    {"name": "Aura runique",      "bonus": 0.18, "color": (120, 160, 255),
-     "glow": (120, 160, 255), "skin": "Des runes tournoient lentement à tes côtés."},
-    {"name": "Aura abyssale",     "bonus": 0.27, "color": (170, 90, 240),
-     "glow": (170, 90, 255), "skin": "Une brume violette semble te suivre avec intention."},
-    {"name": "Aura stellaire",    "bonus": 0.40, "color": (255, 230, 140),
-     "glow": (255, 245, 180), "skin": "Des particules dorées orbitent autour de toi."},
+    {"name": "Lueur dorée",         "bonus": 0.11, "color": (240, 200, 80),
+     "glow": (240, 200, 80), "skin": "Des pépites de lumière ambrée gravitent autour du manche."},
+    {"name": "Halos de cristal",    "bonus": 0.14, "color": (100, 220, 240),
+     "glow": (100, 220, 240), "skin": "Un halo cristallin tintant harmonieusement sous terre."},
+    {"name": "Aura runique",        "bonus": 0.18, "color": (120, 160, 255),
+     "glow": (120, 160, 255), "skin": "Des runes tournoient lentement à tes côtés en brillant."},
+    {"name": "Fluorescence féroce", "bonus": 0.22, "color": (220, 100, 220),
+     "glow": (220, 100, 220), "skin": "Une lueur fuchsia stimulante qui fait étinceler les filons."},
+    {"name": "Aura abyssale",       "bonus": 0.27, "color": (170, 90, 240),
+     "glow": (170, 90, 255), "skin": "Une brume violette semble te suivre avec une intention avide."},
+    {"name": "Sillage de feu",      "bonus": 0.33, "color": (255, 120, 50),
+     "glow": (255, 130, 60), "skin": "Une aura de braises dansantes illuminant la roche sombre."},
+    {"name": "Aura stellaire",      "bonus": 0.40, "color": (255, 230, 140),
+     "glow": (255, 245, 180), "skin": "Des particules dorées orbitent autour de toi majestueusement."},
+    {"name": "Aura de l'Infini",    "bonus": 0.50, "color": (255, 255, 255),
+     "glow": (240, 250, 255), "skin": "Un rayonnement cosmique attirant à toi les richesses du monde."},
 ]
 
 AMULET_TIERS = [
-    {"name": "Pendentif fêlé",       "regen": 0.10, "color": (150, 180, 150),
+    {"name": "Pendentif fêlé",         "regen": 0.10, "color": (150, 180, 150),
      "glow": None, "skin": "Un simple caillou percé, tiède au toucher."},
-    {"name": "Amulette de sève",     "regen": 0.20, "color": (110, 200, 130),
+    {"name": "Amulette d'ambre",       "regen": 0.15, "color": (220, 160, 90),
+     "glow": (210, 150, 80), "skin": "Une goutte d'ambre ancienne renfermant une étincelle de vie."},
+    {"name": "Amulette de sève",       "regen": 0.20, "color": (110, 200, 130),
      "glow": (110, 200, 130), "skin": "Une résine ambrée y palpite doucement."},
-    {"name": "Talisman de vie",      "regen": 0.34, "color": (90, 220, 160),
+    {"name": "Talisman de jade",        "regen": 0.26, "color": (80, 210, 140),
+     "glow": (80, 210, 140), "skin": "Un jade pur taillé apaisant la fatigue du mineur."},
+    {"name": "Talisman de vie",        "regen": 0.34, "color": (90, 220, 160),
      "glow": (90, 220, 160), "skin": "Il bat presque comme un second cœur."},
-    {"name": "Cœur de source",       "regen": 0.52, "color": (80, 230, 220),
+    {"name": "Cœur de mithril",        "regen": 0.42, "color": (160, 220, 255),
+     "glow": (150, 210, 255), "skin": "Incrusté de fils de mithril canalisant les fluides vitaux."},
+    {"name": "Cœur de source",         "regen": 0.52, "color": (80, 230, 220),
      "glow": (80, 230, 220), "skin": "Une eau claire semble couler sous sa surface."},
+    {"name": "Larme du Phénix",        "regen": 0.65, "color": (255, 120, 80),
+     "glow": (255, 130, 90), "skin": "Une gemme embrasée réconfortant la chair blessée."},
     {"name": "Relique de renaissance", "regen": 0.80, "color": (255, 240, 200),
      "glow": (255, 250, 220), "skin": "Chaque battement repousse un peu plus la mort."},
+    {"name": "Cœur du Monde",          "regen": 1.05, "color": (255, 255, 255),
+     "glow": (240, 250, 255), "skin": "Le pouvoir vital primordial insufflant une vigueur éternelle."},
 ]
 
 GAUNTLET_TIERS = [
-    {"name": "Brassard de fortune",   "bonus": 2,  "color": (150, 120, 90),
+    {"name": "Brassard de fortune",   "bonus": 2,   "color": (150, 120, 90),
      "glow": None, "skin": "Des lanières de cuir autour du poignet : mieux que rien."},
-    {"name": "Gantelet clouté",       "bonus": 5,  "color": (175, 178, 188),
-     "glow": None, "skin": "Hérissé de clous, il laisse des marques."},
-    {"name": "Gantelet runique",      "bonus": 10, "color": (120, 160, 255),
-     "glow": (120, 160, 255), "skin": "Chaque coup réveille une rune de force."},
-    {"name": "Poing abyssal",         "bonus": 18, "color": (170, 90, 240),
-     "glow": (170, 90, 255), "skin": "Il frappe un peu avant toi, comme s'il avait faim."},
-    {"name": "Main stellaire",        "bonus": 30, "color": (255, 230, 140),
-     "glow": (255, 245, 180), "skin": "Une main d'étoile : les monstres s'en souviennent."},
+    {"name": "Gantelet de cuivre",     "bonus": 3.5, "color": (200, 130, 80),
+     "glow": None, "skin": "Plaqué de cuivre lourd assénant des coups plus pesants."},
+    {"name": "Gantelet clouté",       "bonus": 5,   "color": (175, 178, 188),
+     "glow": None, "skin": "Hérissé de clous d'acier, il laisse de sombres marques."},
+    {"name": "Poing d'acier trempé",  "bonus": 7.5, "color": (210, 215, 225),
+     "glow": None, "skin": "Un gantelet articulé avec précision broyant la roche et les os."},
+    {"name": "Gantelet runique",      "bonus": 10,  "color": (120, 160, 255),
+     "glow": (120, 160, 255), "skin": "Chaque coup réveille une rune de force dévastatrice."},
+    {"name": "Emprise de mithril",    "bonus": 13.5, "color": (160, 220, 255),
+     "glow": (150, 210, 255), "skin": "Léger comme la plume mais infligeant des impacts foudroyants."},
+    {"name": "Poing abyssal",         "bonus": 18,  "color": (170, 90, 240),
+     "glow": (170, 90, 255), "skin": "Il frappe un peu avant toi, comme s'il avait faim de monstres."},
+    {"name": "Giffe du Dragon",       "bonus": 23.5, "color": (230, 80, 50),
+     "glow": (240, 100, 60), "skin": "Muni de griffes incandescentes déchirant le cuir des créatures."},
+    {"name": "Main stellaire",        "bonus": 30,  "color": (255, 230, 140),
+     "glow": (255, 245, 180), "skin": "Une main d'étoile : les monstres s'en souviennent encore."},
+    {"name": "Main du Titan",         "bonus": 38,  "color": (255, 255, 255),
+     "glow": (240, 250, 255), "skin": "Le poing légendaire capable de pulvériser les pires monstres des galeries."},
 ]
 # Le gantelet ne gagne de l'XP QUE en combat (par dégât réellement infligé à un monstre).
 GAUNTLET_XP_PER_DAMAGE = 1.5

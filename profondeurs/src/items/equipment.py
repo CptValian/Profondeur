@@ -54,20 +54,28 @@ class Equipment:
         return self.data["skin"]
 
     def _level_mult(self) -> float:
-        return 1 + (self.level - 1) * config.EQUIP_LEVEL_BONUS
+        return 1 + (self.level - 1) * config.EQUIP_LEVEL_BONUS_PCT
+
+    def flat_bonus(self, key: str = None) -> float:
+        if key is None:
+            kind_key = self.__class__.__name__.lower()
+        else:
+            kind_key = f"{self.__class__.__name__.lower()}_{key}"
+        flat_rate = config.EQUIP_LEVEL_FLAT_BONUS.get(kind_key, 0.0)
+        return (self.level - 1) * flat_rate
 
     @property
     def effective_bonus(self) -> float:
-        """Bonus de base du palier, amplifié par le niveau d'XP transcendant."""
+        """Bonus du palier (amplifié par le multiplicateur de niveau) + bonus plat de niveau."""
         if not self.enabled:
             return 0.0
-        return self.base_bonus * self._level_mult()
+        return self.base_bonus * self._level_mult() + self.flat_bonus()
 
     def effective_stat(self, key: str) -> float:
         """Pour un second stat éventuel du palier (ex: 'regen' du casque)."""
         if not self.enabled:
             return 0.0
-        return self.data.get(key, 0.0) * self._level_mult()
+        return self.data.get(key, 0.0) * self._level_mult() + self.flat_bonus(key)
 
     @property
     def is_max_tier(self) -> bool:
