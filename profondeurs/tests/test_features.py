@@ -29,9 +29,71 @@ class TestGameFeatures(unittest.TestCase):
         self.assertAlmostEqual(b0.max_health, 1.0, delta=0.05)
         self.assertAlmostEqual(b1.max_health, 3.0, delta=0.05)
 
+    def test_pickaxe_tiers_count(self):
+        from src.items.pickaxe_specs import PICKAXE_SPECS
+        self.assertEqual(len(PICKAXE_SPECS), 70)
+        self.assertEqual(len(config.TOOL_TIERS), 70)
+        self.assertAlmostEqual(config.TOOL_TIERS[10]["power"], 1.4)
+        self.assertAlmostEqual(config.TOOL_TIERS[10]["speed"], 1.55)
+
     def test_mining_rewards(self):
-        self.assertEqual(config.GOLD_PER_BLOCK_HP, 0.28)
+        self.assertAlmostEqual(config.GOLD_PER_BLOCK_HP, 0.364)
         self.assertEqual(config.TOOL_XP_PER_DAMAGE, 0.35)
+
+    def test_audio_manager_and_settings(self):
+        from src.audio_manager import AudioManager
+        audio = AudioManager()
+        self.assertTrue(audio.music_enabled)
+        self.assertTrue(audio.sfx_enabled)
+
+        music_state = audio.toggle_music()
+        self.assertFalse(music_state)
+        sfx_state = audio.toggle_sfx()
+        self.assertFalse(sfx_state)
+
+        audio.update_atmosphere(100)
+        audio.update_atmosphere(300)
+        audio.update_atmosphere(800)
+
+        audio.sfx_enabled = True
+        audio.play_pickaxe_hit(hardness=1.0)
+        audio.play_pickaxe_hit(hardness=2.5)
+
+    def test_alt_and_continuous_mining(self):
+        from main import Game
+        game = Game()
+        game.state = "exploring"
+        self.assertFalse(game.is_mining_active)
+        self.assertEqual(game.alt_dir, -1)
+
+    def test_army_affinity_system(self):
+        from src.items import crafting
+        magic_vs_heavy = crafting.get_affinity_multiplier("magic", "heavy")
+        self.assertEqual(magic_vs_heavy, 2.0)
+        piercing_vs_light = crafting.get_affinity_multiplier("piercing", "light")
+        self.assertEqual(piercing_vs_light, 1.5)
+
+    def test_monuments_and_builders(self):
+        player = Player()
+        inv = player.inventory
+        self.assertEqual(inv.stone_fragments, 0.0)
+        self.assertEqual(inv.builders, 0)
+        self.assertEqual(inv.monuments_built, 0)
+
+        b = Block("s0", hardness=1.0, depth=0)
+        inv.stone_fragments += b.max_health
+        self.assertGreater(inv.stone_fragments, 0)
+
+        inv.gold = 100
+        recruited = inv.recruit_builder()
+        self.assertTrue(recruited)
+        self.assertEqual(inv.builders, 1)
+
+        inv.stone_fragments = 1000.0
+        finished = inv.tick_monuments(1000.0)
+        self.assertTrue(finished)
+        self.assertEqual(inv.monuments_built, 1)
+        self.assertAlmostEqual(player.monument_bonus, 0.05)
 
     def test_xp_stones_and_passive_xp(self):
         player = Player()

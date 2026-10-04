@@ -144,6 +144,7 @@ class MiningCompanion:
             stone = stones.get_by_id(block.stone_id)
             first_discovery = stones.discover(block.stone_id)
             player.inventory.add_resource(block.stone_id, block.resource_amount)
+            player.inventory.stone_fragments += block.max_health
             block_gold = block.roll_gold(random) + player.block_gold_bonus
             player.gain_gold(block_gold)
 

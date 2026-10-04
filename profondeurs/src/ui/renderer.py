@@ -197,7 +197,7 @@ class Renderer:
     # ==================================================================
     # GALERIE DE MINE
     # ==================================================================
-    def draw_grid(self, world_gen, player, hover_cell, mining_cell):
+    def draw_grid(self, world_gen, player, hover_cell, mining_cell, is_mining=False):
         top_row = max(0, player.row - 2)
         size = self.tile
 
@@ -284,7 +284,7 @@ class Renderer:
         p_row_screen = player.row - top_row
         px = self.grid_x + player.col * size + size // 2
         py = self.grid_y + p_row_screen * size + size // 2
-        self._draw_player(px, py, player, mining_cell is not None)
+        self._draw_player(px, py, player, is_mining or mining_cell is not None)
         self.last_top_row = top_row
         return top_row
 
@@ -424,7 +424,7 @@ class Renderer:
         pygame.draw.line(self.screen, (90, 70, 110), (px, 0), (px, self.H), 2)
 
         tabs = [("tool", "Outil"), ("equip", "Équip."), ("stones", "Pierres"), ("artifacts", "Artef."),
-                ("competitors", "Rivaux"), ("workshop", "Atelier"), ("stats", "Stats")]
+                ("competitors", "Rivaux"), ("workshop", "Atelier"), ("settings", "Options"), ("stats", "Stats")]
         tab_w = self.panel_w // len(tabs)
         pulse = 0.65 + 0.35 * math.sin(pygame.time.get_ticks() / 260.0)
         for i, (key, label) in enumerate(tabs):
@@ -454,6 +454,8 @@ class Renderer:
             self._draw_tab_competitors(content, player, competitors or [])
         elif self.active_tab == "workshop":
             self._draw_tab_workshop(content, player)
+        elif self.active_tab == "settings":
+            self._draw_tab_settings(content, getattr(self, "audio", None))
         elif self.active_tab == "stats":
             self._draw_tab_stats(content, player, competitive_ai)
 
@@ -857,9 +859,49 @@ class Renderer:
             lt = self.font_tiny.render(line, True, (200, 190, 170))
             self.screen.blit(lt, (box.centerx - lt.get_width() // 2, box.y + 42 + i * 16))
 
+    def _draw_workshop_monuments(self, rect, player, y):
+        inv = player.inventory
+        t = self.font.render("Monuments aux Dieux", True, (230, 225, 210))
+        self.screen.blit(t, (rect.x, y)); y += 28
+
+        for line in self._wrap_text("Les fragments de roche minés permettent d'ériger des Monuments. "
+                                    "Chaque monument achevé accorde +5% de puissance de pioche globale.", self.font_tiny, rect.width):
+            self.screen.blit(self.font_tiny.render(line, True, (150, 145, 165)), (rect.x, y)); y += 15
+        y += 10
+
+        mb_txt = self.font_small.render(f"Monuments achevés : {inv.monuments_built} (+{inv.monuments_built * 5}% dégâts)", True, (255, 220, 120))
+        self.screen.blit(mb_txt, (rect.x, y)); y += 24
+
+        frag_txt = self.font_small.render(f"Fragments de roche : {int(inv.stone_fragments)}", True, (200, 210, 225))
+        self.screen.blit(frag_txt, (rect.x, y)); y += 24
+
+        needed = inv.required_monument_fragments()
+        prog_txt = self.font_tiny.render(f"Progression : {int(inv.monument_progress)} / {needed} fragments", True, (170, 200, 170))
+        self.screen.blit(prog_txt, (rect.x, y)); y += 16
+
+        # Barre de progression
+        bar = pygame.Rect(rect.x, y, rect.width - 10, 12)
+        pygame.draw.rect(self.screen, (34, 36, 50), bar, border_radius=6)
+        ratio = max(0.0, min(1.0, inv.monument_progress / max(1, needed)))
+        pygame.draw.rect(self.screen, (100, 210, 150), (rect.x, y, int(bar.width * ratio), 12), border_radius=6)
+        pygame.draw.rect(self.screen, (120, 130, 160), bar, 1, border_radius=6)
+        y += 24
+
+        b_txt = self.font_small.render(f"Bâtisseurs : {inv.builders} ({inv.builders} frag/s)", True, (220, 220, 220))
+        self.screen.blit(b_txt, (rect.x, y)); y += 24
+
+        cost = inv.builder_cost()
+        btn_rect = pygame.Rect(rect.x, y, rect.width - 10, 42)
+        can = inv.gold >= cost
+        pygame.draw.rect(self.screen, (70, 130, 80) if can else (60, 45, 45), btn_rect, border_radius=8)
+        pygame.draw.rect(self.screen, (255, 255, 255), btn_rect, 1, border_radius=8)
+        bt = self.font_small.render(f"Recruter bâtisseur — {cost} or", True, (240, 240, 240))
+        self.screen.blit(bt, (btn_rect.centerx - bt.get_width() // 2, btn_rect.centery - bt.get_height() // 2))
+        self.rects["btn_recruit_builder"] = btn_rect
+
     def _draw_tab_workshop(self, rect, player):
         inv = player.inventory
-        subs = [("comp", "Composants"), ("troops", "Troupes"), ("hero", "Héros"), ("tower", "Donjon"), ("war", "Guerre")]
+        subs = [("comp", "Composants"), ("troops", "Troupes"), ("hero", "Héros"), ("tower", "Donjon"), ("war", "Guerre"), ("monuments", "Monuments")]
         sw = rect.width // len(subs)
         for i, (key, label) in enumerate(subs):
             r = pygame.Rect(rect.x + i * sw, rect.y, sw - 4, 28)
@@ -926,6 +968,10 @@ class Renderer:
             self._scroll_end(y + off - y0)
             return
 
+        if self.active_workshop == "monuments":
+            self._draw_workshop_monuments(rect, player, y)
+            return
+
         if self.active_workshop == "war":
             if not player.workshop_unlocked:
                 self._draw_lock_notice(rect, y, config.LEVEL_WORKSHOP, "Les attaques", player.level)
@@ -977,7 +1023,7 @@ class Renderer:
             nt = self.font_small.render(f"{recipe.name}  x{owned}", True, (230, 225, 210))
             self.screen.blit(nt, (row.x + 8, row.y + 4))
             kind_txt = "tir" if recipe.range > 60 else "mêlée"
-            st = self.font_tiny.render(f"ATQ {recipe.attack} · PV {recipe.health} · DEF {recipe.defense} · {kind_txt}",
+            st = self.font_tiny.render(f"ATQ {recipe.attack} ({recipe.attack_type}) · Armure {recipe.armor_type} · PV {recipe.health} · DEF {recipe.defense}",
                                        True, (170, 165, 185))
             self.screen.blit(st, (row.x + 8, row.y + 26))
             cy = row.y + 44
@@ -1157,6 +1203,42 @@ class Renderer:
                 self.screen.blit(self.font_tiny.render(line, True, col), (rect.x, y))
                 y += 15
             y += 3
+
+    def _draw_tab_settings(self, rect, audio):
+        title = self.font.render("Réglages audio", True, (230, 225, 210))
+        self.screen.blit(title, (rect.x, rect.y))
+        y = rect.y + 40
+
+        # Toggle Musique
+        m_enabled = audio.music_enabled if audio else True
+        btn_m = pygame.Rect(rect.x, y, rect.width - 10, 44)
+        pygame.draw.rect(self.screen, (60, 110, 70) if m_enabled else (50, 45, 55), btn_m, border_radius=8)
+        pygame.draw.rect(self.screen, (255, 255, 255), btn_m, 1, border_radius=8)
+        label_m = f"Musique & Ambiance : {'ACTIVÉE' if m_enabled else 'DÉSACTIVÉE'}"
+        txt_m = self.font_small.render(label_m, True, (240, 240, 240))
+        self.screen.blit(txt_m, (btn_m.centerx - txt_m.get_width() // 2, btn_m.centery - txt_m.get_height() // 2))
+        self.rects["btn_toggle_music"] = btn_m
+        y += 50
+
+        sub1 = "La bande son évolue au fur et à mesure que tu t'enfonces dans la terre (Surface -> Caverne -> Abysses)."
+        for line in self._wrap_text(sub1, self.font_tiny, rect.width - 10):
+            self.screen.blit(self.font_tiny.render(line, True, (150, 145, 165)), (rect.x, y)); y += 15
+        y += 20
+
+        # Toggle SFX
+        s_enabled = audio.sfx_enabled if audio else True
+        btn_s = pygame.Rect(rect.x, y, rect.width - 10, 44)
+        pygame.draw.rect(self.screen, (60, 110, 70) if s_enabled else (50, 45, 55), btn_s, border_radius=8)
+        pygame.draw.rect(self.screen, (255, 255, 255), btn_s, 1, border_radius=8)
+        label_s = f"Sons de pioche (procéduraux) : {'ACTIVÉS' if s_enabled else 'DÉSACTIVÉS'}"
+        txt_s = self.font_small.render(label_s, True, (240, 240, 240))
+        self.screen.blit(txt_s, (btn_s.centerx - txt_s.get_width() // 2, btn_s.centery - txt_s.get_height() // 2))
+        self.rects["btn_toggle_sfx"] = btn_s
+        y += 50
+
+        sub2 = "Chaque coup de pioche varie légèrement de pitch (+/- 5%) et adapte sa sonorité à la dureté du bloc."
+        for line in self._wrap_text(sub2, self.font_tiny, rect.width - 10):
+            self.screen.blit(self.font_tiny.render(line, True, (150, 145, 165)), (rect.x, y)); y += 15
 
     def _draw_player_xp_bar(self, x, y, w, h, player):
         pygame.draw.rect(self.screen, (34, 36, 50), (x, y, w, h), border_radius=h // 2)

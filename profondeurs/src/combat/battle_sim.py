@@ -40,7 +40,7 @@ SUPREME_PERIOD = 10.0             # renforts / pluie de flèches toutes les 10 s
 class Unit:
     __slots__ = ("uid", "side", "rid", "x", "lane", "hp", "max_hp", "atk", "defense", "range", "speed",
                  "interval", "cd", "alive", "state", "attack_t", "hurt_t", "dead_t", "is_tower", "is_hero", "ranged",
-                 "burn_t", "burn_dps", "summoned")
+                 "burn_t", "burn_dps", "summoned", "attack_type", "armor_type")
 
     def __init__(self, uid, side, rid, x, lane, rng):
         self.uid, self.side, self.rid, self.x, self.lane = uid, side, rid, x, lane
@@ -49,12 +49,13 @@ class Unit:
         self.burn_t = 0.0
         self.burn_dps = 0.0
         self.summoned = False
-        self.uid, self.side, self.rid, self.x, self.lane = uid, side, rid, x, lane
         if rid in crafting.RECIPES_BY_ID:
             r = crafting.RECIPES_BY_ID[rid]
             self.hp = self.max_hp = float(r.health)
             self.atk, self.defense, self.range, self.speed, self.interval = r.attack, r.defense, r.range, r.speed, r.interval
             self.ranged = r.range > MELEE_MAX_RANGE
+            self.attack_type = getattr(r, "attack_type", "physical")
+            self.armor_type = getattr(r, "armor_type", "light")
         else:
             self.hp = self.max_hp = 100.0
             self.atk = 10.0
@@ -63,6 +64,8 @@ class Unit:
             self.speed = 100.0
             self.interval = 1.0
             self.ranged = False
+            self.attack_type = "physical"
+            self.armor_type = "heavy"
         self.cd = rng.uniform(0, self.interval)
         self.alive = True
         self.state = "idle"
@@ -70,13 +73,14 @@ class Unit:
 
 
 class Projectile:
-    __slots__ = ("src_x", "target", "dmg", "t", "dur", "tower", "src_side", "arc", "fire", "rain")
+    __slots__ = ("src_x", "target", "dmg", "t", "dur", "tower", "src_side", "arc", "fire", "rain", "src_attack_type")
 
-    def __init__(self, src_x, target, dmg, dur, tower, src_side, arc):
+    def __init__(self, src_x, target, dmg, dur, tower, src_side, arc, src_attack_type="piercing"):
         self.src_x, self.target, self.dmg, self.t, self.dur = src_x, target, dmg, 0.0, dur
         self.fire = False
         self.rain = False
         self.tower, self.src_side, self.arc = tower, src_side, arc
+        self.src_attack_type = src_attack_type
 
 
 class BattleSim:
@@ -164,10 +168,12 @@ class BattleSim:
             u.alive = False
             u.dead_t = self.time
 
-    def _hit(self, target, raw, src_side, fire=False, src_unit=None):
+    def _hit(self, target, raw, src_side, fire=False, src_unit=None, attack_type="physical"):
         if not target.alive:
             return
-        dmg = raw * self.rng.uniform(0.85, 1.15) * 100.0 / (100.0 + config.WAR_DEFENSE_FACTOR * target.defense)
+        atk_type = src_unit.attack_type if src_unit else attack_type
+        aff_mult = crafting.get_affinity_multiplier(atk_type, target.armor_type)
+        dmg = raw * aff_mult * self.rng.uniform(0.85, 1.15) * 100.0 / (100.0 + config.WAR_DEFENSE_FACTOR * target.defense)
         target.hp -= dmg
         target.hurt_t = self.time
         if src_unit and getattr(src_unit, "is_hero", False):
@@ -222,7 +228,7 @@ class BattleSim:
                     u.attack_t = self.time
                     if u.ranged:
                         dur = max(0.15, dist / ARROW_SPEED)
-                        self.projectiles.append(Projectile(u.x, tgt, u.atk, dur, False, u.side, 30.0))
+                        self.projectiles.append(Projectile(u.x, tgt, u.atk, dur, False, u.side, 30.0, src_attack_type=u.attack_type))
                     else:
                         self._hit(tgt, u.atk, u.side, src_unit=u)
             elif u.side == "att" or dist <= AGGRO:
@@ -269,7 +275,7 @@ class BattleSim:
         for p in self.projectiles:
             p.t += dt
             if p.t >= p.dur:
-                self._hit(p.target, p.dmg, p.src_side, p.fire)
+                self._hit(p.target, p.dmg, p.src_side, p.fire, attack_type=p.src_attack_type)
             else:
                 keep.append(p)
         self.projectiles = keep

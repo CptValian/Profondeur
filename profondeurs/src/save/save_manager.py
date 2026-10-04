@@ -30,6 +30,10 @@ def _inv_extra_to_dict(inv):
         "tower": dict(inv.tower),
         "war_wins": inv.war_wins,
         "xp_stones": inv.xp_stones,
+        "stone_fragments": inv.stone_fragments,
+        "builders": inv.builders,
+        "monument_progress": inv.monument_progress,
+        "monuments_built": inv.monuments_built,
     }
 
 
@@ -42,6 +46,10 @@ def _inv_extra_from_dict(inv, d):
     inv.tower.update({k: v for k, v in d.get("tower", {}).items() if k in inv.tower})
     inv.war_wins = d.get("war_wins", 0)
     inv.xp_stones = d.get("xp_stones", 0)
+    inv.stone_fragments = d.get("stone_fragments", 0.0)
+    inv.builders = d.get("builders", 0)
+    inv.monument_progress = d.get("monument_progress", 0.0)
+    inv.monuments_built = d.get("monuments_built", 0)
 
 
 def _ai_to_dict(ai):
@@ -104,7 +112,7 @@ def save_exists(path=config.SAVE_PATH) -> bool:
 
 
 def save_game(player, stone_registry, artifact_catalog, competitive_ai, competitors=None, world=None,
-              ledger=None, path=config.SAVE_PATH):
+              ledger=None, path=config.SAVE_PATH, audio=None):
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     pdata = {
         "row": player.row,
@@ -157,6 +165,10 @@ def save_game(player, stone_registry, artifact_catalog, competitive_ai, competit
         "artifacts_found": list(artifact_catalog.found),
         "player_rating": competitive_ai.player_rating,
         "competitors": [_ai_to_dict(ai) for ai in (competitors or [])],
+        "audio_settings": {
+            "music_enabled": audio.music_enabled if audio else True,
+            "sfx_enabled": audio.sfx_enabled if audio else True,
+        },
     }
     # écriture atomique : une fermeture brutale ne corrompt pas la sauvegarde
     tmp = path + ".tmp"
@@ -166,7 +178,7 @@ def save_game(player, stone_registry, artifact_catalog, competitive_ai, competit
 
 
 def load_game(player, stone_registry, artifact_catalog, competitive_ai, competitors=None, world=None,
-              ledger=None, path=config.SAVE_PATH):
+              ledger=None, path=config.SAVE_PATH, audio=None):
     if not os.path.exists(path):
         return False
     try:
@@ -246,6 +258,10 @@ def load_game(player, stone_registry, artifact_catalog, competitive_ai, competit
                 if st.discovered:
                     ledger.claim(sid, "Toi", 0, st.custom_name or f"Pierre de {st.depth_tier}")
         ledger.sync(stone_registry)
+
+    if audio is not None and "audio_settings" in data:
+        audio.music_enabled = data["audio_settings"].get("music_enabled", True)
+        audio.sfx_enabled = data["audio_settings"].get("sfx_enabled", True)
 
     if competitors:
         saved_by_name = {c["name"]: c for c in data.get("competitors", [])}
