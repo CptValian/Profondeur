@@ -20,6 +20,13 @@ class TestGameFeatures(unittest.TestCase):
         cost_tier1 = aura.upgrade_cost()
         self.assertGreater(cost_tier1, cost_tier0 * 2)
 
+    def test_equipment_20_tiers(self):
+        self.assertEqual(len(config.HELMET_TIERS), 20)
+        self.assertEqual(len(config.ARMOR_TIERS), 20)
+        self.assertEqual(len(config.AURA_TIERS), 20)
+        self.assertEqual(len(config.AMULET_TIERS), 20)
+        self.assertEqual(len(config.GAUNTLET_TIERS), 20)
+
     def test_starting_stones_hp(self):
         reg = StoneRegistry()
         s0 = reg.get_by_id("s0")

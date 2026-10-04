@@ -28,7 +28,6 @@ from src.items.artifact import ArtifactCatalog
 from src.items import crafting
 from src.entities.player import Player
 from src.entities.monster import spawn_monster
-from src.ai.monster_ai import CompetitiveAI
 from src.combat import combat_system as combat
 from src.combat import faction_war
 from src.items import tower as tower_mod
@@ -127,7 +126,6 @@ class Game:
         self.artifacts = ArtifactCatalog()
         self.world = WorldGenerator(self.stones, self.artifacts)
         self.player = Player()
-        self.competitive_ai = CompetitiveAI()
         self.competitors = create_competitors(self.ai_difficulties, self.ledger)
         self.renderer.stones = self.stones
         self.renderer.ledger = self.ledger
@@ -169,7 +167,7 @@ class Game:
         self.held_dirs = []
 
         if load_existing:
-            save_manager.load_game(self.player, self.stones, self.artifacts, self.competitive_ai,
+            save_manager.load_game(self.player, self.stones, self.artifacts,
                                    self.competitors, world=self.world, ledger=self.ledger, audio=self.audio,
                                    faction_banks=self.faction_banks)
 
@@ -183,7 +181,7 @@ class Game:
         self.auto_shift_dir = None
 
     def _save(self):
-        save_manager.save_game(self.player, self.stones, self.artifacts, self.competitive_ai,
+        save_manager.save_game(self.player, self.stones, self.artifacts,
                                self.competitors, world=self.world, ledger=self.ledger, audio=self.audio,
                                faction_banks=self.faction_banks)
         self.has_save = True
@@ -843,7 +841,7 @@ class Game:
 
     # ------------------------------------------------------------------
     def start_combat(self, block):
-        aggressiveness = self.competitive_ai.aggressiveness_for(block.depth)
+        aggressiveness = min(0.8, round(0.45 + block.depth * 0.0003, 3))
         self.current_monster = spawn_monster(block.depth, aggressiveness)
         self.combat_target_block = block
         self.combat_log = [f"Un {self.current_monster.name} surgit de la roche !"]
@@ -924,8 +922,6 @@ class Game:
             self.current_monster = None
 
     def end_combat(self, won: bool):
-        hp_ratio = self.player.health / self.player.max_health
-        self.competitive_ai.update_after_fight(self.combat_target_block.depth, won, hp_ratio)
         if won:
             self.combat_target_block.is_empty = True
             self.combat_target_block.contains_monster = False
@@ -1440,7 +1436,7 @@ class Game:
             "time_left": self.joint_grid_time_left,
             "points": self.joint_grid_points,
         }
-        self.renderer.draw_side_panel(self.player, self.stones, self.artifacts, self.competitive_ai, self.competitors)
+        self.renderer.draw_side_panel(self.player, self.stones, self.artifacts, self.competitors)
 
         if self.message and time.time() < self.message_until:
             self.renderer.draw_message(*self.message)

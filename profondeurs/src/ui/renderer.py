@@ -82,34 +82,105 @@ class Renderer:
     # ==================================================================
     # TEXTURES DE BLOC
     # ==================================================================
-    def _get_texture(self, stone):
-        if stone.stone_id in self._texture_cache:
-            return self._texture_cache[stone.stone_id]
+    def _get_texture(self, stone, variant: int = 0):
+        key = (stone.stone_id, variant % 6)
+        if key in self._texture_cache:
+            return self._texture_cache[key]
         size = self.tile
         surf = pygame.Surface((size, size), pygame.SRCALPHA)
         base = stone.base_color
-        # dégradé diagonal léger
+        v_idx = variant % 6
+        rng = random.Random(stone.texture_seed + v_idx * 99991)
+
+        # Style de variant (0: granuleux, 1: strates, 2: pépites/incrustations, 3: fissures minérales, 4: géode/veines, 5: chiseled)
+        style = v_idx
+
+        # 1. Fond organique avec dégradé et variations de teintes locales
         for y in range(size):
             t = y / size
-            row_color = _lerp_color(_shade(base, 1.12), _shade(base, 0.82), t)
+            if style == 1:
+                # Strates horizontales ondulées
+                wave = math.sin(t * math.pi * 3 + v_idx) * 0.12
+                factor = 0.85 + 0.35 * math.sin((y + wave * size) * 0.25)
+            else:
+                factor = 1.15 - 0.35 * (t ** 1.2)
+            row_color = _shade(base, max(0.4, min(1.6, factor)))
             pygame.draw.line(surf, row_color, (0, y), (size, y))
-        # mouchetures (grains de roche), déterministe via texture_seed
-        rng = random.Random(stone.texture_seed)
-        n_specks = size // 3
+
+        # 2. Grain minéral / Bruit de fond
+        n_specks = size * 2
         for _ in range(n_specks):
-            x = rng.randint(1, size - 2)
-            y = rng.randint(1, size - 2)
-            r = rng.choice([1, 1, 2])
-            bright = rng.random() < 0.5
-            c = _shade(base, 1.4 if bright else 0.6)
+            x = rng.randint(0, size - 1)
+            y = rng.randint(0, size - 1)
+            r = rng.choice([1, 1, 1, 2])
+            shade_val = rng.uniform(0.5, 1.5)
+            c = _shade(base, shade_val)
             pygame.draw.circle(surf, c, (x, y), r)
-        # quelques veines fines
-        for _ in range(rng.randint(1, 3)):
-            x1, y1 = rng.randint(0, size), rng.randint(0, size)
-            x2 = x1 + rng.randint(-size // 2, size // 2)
-            y2 = y1 + rng.randint(-size // 2, size // 2)
-            pygame.draw.line(surf, _shade(base, 1.5), (x1, y1), (x2, y2), 1)
-        self._texture_cache[stone.stone_id] = surf
+
+        # 3. Éléments visuels spécifiques selon le variant
+        if style == 0:  # Granuleux / Roche rugueuse
+            for _ in range(rng.randint(3, 6)):
+                cx, cy = rng.randint(4, size - 4), rng.randint(4, size - 4)
+                cr = rng.randint(2, 5)
+                c_dark = _shade(base, 0.55)
+                c_light = _shade(base, 1.45)
+                pygame.draw.circle(surf, c_dark, (cx + 1, cy + 1), cr)
+                pygame.draw.circle(surf, c_light, (cx, cy), cr)
+
+        elif style == 1:  # Strates / Lignes sédimentaires
+            for _ in range(rng.randint(2, 4)):
+                sy = rng.randint(4, size - 4)
+                pts = [(x, sy + int(math.sin(x * 0.1 + v_idx) * 2)) for x in range(0, size, 2)]
+                c = _shade(base, rng.uniform(0.6, 1.4))
+                if len(pts) >= 2:
+                    pygame.draw.lines(surf, c, False, pts, rng.choice([1, 2]))
+
+        elif style == 2:  # Incrustations / Gemmes brutes
+            for _ in range(rng.randint(2, 5)):
+                gx, gy = rng.randint(6, size - 6), rng.randint(6, size - 6)
+                gr = rng.randint(3, 6)
+                # Couleur complémentaire ou brillante
+                g_color = _shade(base, 1.8) if rng.random() < 0.6 else (
+                    _clamp(base[2] * 1.3 + 40), _clamp(base[0] * 1.3 + 40), _clamp(base[1] * 1.3 + 40)
+                )
+                pts = [
+                    (gx + int(gr * math.cos(a)), gy + int(gr * math.sin(a)))
+                    for a in [0, 1.2, 2.5, 4.0, 5.2]
+                ]
+                pygame.draw.polygon(surf, g_color, pts)
+                pygame.draw.polygon(surf, _shade(g_color, 1.5), pts, 1)
+
+        elif style == 3:  # Fissures / Micro-fractures
+            for _ in range(rng.randint(2, 4)):
+                x1, y1 = rng.randint(2, size - 2), rng.randint(2, size - 2)
+                x2 = x1 + rng.randint(-size // 2, size // 2)
+                y2 = y1 + rng.randint(-size // 2, size // 2)
+                pygame.draw.line(surf, (15, 12, 18, 220), (x1, y1), (x2, y2), 2)
+                pygame.draw.line(surf, _shade(base, 1.5), (x1 + 1, y1 + 1), (x2 + 1, y2 + 1), 1)
+
+        elif style == 4:  # Géode / Veines lumineuses
+            for _ in range(rng.randint(1, 3)):
+                vx = rng.randint(4, size - 4)
+                vy = rng.randint(4, size - 4)
+                vw, vh = rng.randint(8, 16), rng.randint(6, 12)
+                v_rect = pygame.Rect(vx, vy, vw, vh)
+                pygame.draw.ellipse(surf, _shade(base, 0.4), v_rect)
+                pygame.draw.ellipse(surf, _shade(base, 1.7), v_rect.inflate(-4, -4))
+
+        elif style == 5:  # Chiseled / Bords biseautés internes
+            inset = rng.randint(3, 6)
+            in_rect = pygame.Rect(inset, inset, size - inset * 2, size - inset * 2)
+            pygame.draw.rect(surf, _shade(base, 1.25), in_rect, 1)
+            pygame.draw.line(surf, _shade(base, 1.5), in_rect.topleft, in_rect.topright, 2)
+            pygame.draw.line(surf, _shade(base, 0.5), in_rect.bottomleft, in_rect.bottomright, 2)
+
+        # 4. Bordure et bevel général du bloc
+        pygame.draw.line(surf, _shade(base, 1.4), (0, 0), (size - 1, 0), 1)
+        pygame.draw.line(surf, _shade(base, 1.4), (0, 0), (0, size - 1), 1)
+        pygame.draw.line(surf, _shade(base, 0.5), (0, size - 1), (size - 1, size - 1), 1)
+        pygame.draw.line(surf, _shade(base, 0.5), (size - 1, 0), (size - 1, size - 1), 1)
+
+        self._texture_cache[key] = surf
         return surf
 
     def _get_cracks(self, seed, level, size):
@@ -220,7 +291,8 @@ class Renderer:
                     continue
 
                 stone = self.stones.get_by_id(block.stone_id)
-                tex = self._get_texture(stone)
+                variant = (row * 37 + col * 13 + hash(stone.stone_id)) % 6
+                tex = self._get_texture(stone, variant=variant)
                 shade_factor = max(0.4, 1 - r_screen * config.DEPTH_SHADE_STEP)
                 shaded = tex.copy()
                 dark_overlay = pygame.Surface(tex.get_size(), pygame.SRCALPHA)
@@ -412,7 +484,7 @@ class Renderer:
     # ==================================================================
     # PANNEAU LATERAL A ONGLETS
     # ==================================================================
-    def draw_side_panel(self, player, stones, artifacts, competitive_ai, competitors=None):
+    def draw_side_panel(self, player, stones, artifacts, competitors=None):
         self.rects = {}
         self._war_competitors = competitors or []
         px = self.main_w
@@ -457,7 +529,7 @@ class Renderer:
         elif self.active_tab == "settings":
             self._draw_tab_settings(content, getattr(self, "audio", None))
         elif self.active_tab == "stats":
-            self._draw_tab_stats(content, player, competitive_ai)
+            self._draw_tab_stats(content, player, competitors or [])
 
     def _draw_tab_tool(self, rect, player):
         tool = player.tool
@@ -669,49 +741,121 @@ class Renderer:
     def _draw_equip_icon(self, x, y, equip, kind):
         c = equip.color
         glow = equip.glow
+        tier = getattr(equip, "tier", getattr(equip, "gold_tier", 0))
+        t = pygame.time.get_ticks() / 600.0
+
+        # Dynamic multi-layered glow
         if glow:
-            surf = pygame.Surface((160, 160), pygame.SRCALPHA)
-            pygame.draw.circle(surf, (*glow, 60), (80, 80), 70)
-            self.screen.blit(surf, (x - 80, y - 80))
+            surf = pygame.Surface((180, 180), pygame.SRCALPHA)
+            for gr in range(80, 20, -10):
+                alpha = int(25 * (1 - gr / 80.0) * (1 + 0.2 * math.sin(t * 2)))
+                pygame.draw.circle(surf, (*glow, alpha), (90, 90), gr)
+            self.screen.blit(surf, (x - 90, y - 90))
+
         if kind == "helmet":
-            pygame.draw.circle(self.screen, c, (x, y), 34)
-            pygame.draw.rect(self.screen, c, (x - 34, y, 68, 20), border_radius=4)
-            pygame.draw.circle(self.screen, _shade(c, 1.4), (x, y), 34, 3)
+            # Helm base & dome
+            pygame.draw.circle(self.screen, _shade(c, 0.6), (x + 2, y + 2), 36)
+            pygame.draw.circle(self.screen, c, (x, y), 36)
+            pygame.draw.circle(self.screen, _shade(c, 1.4), (x, y), 36, 2)
+            # Cheek guards / cheek plates
+            pygame.draw.polygon(self.screen, _shade(c, 0.8), [(x - 36, y), (x - 24, y + 32), (x - 12, y + 20)])
+            pygame.draw.polygon(self.screen, _shade(c, 0.8), [(x + 36, y), (x + 24, y + 32), (x + 12, y + 20)])
+            # Visor slit & metallic nasal guard
+            pygame.draw.rect(self.screen, (15, 12, 18), (x - 24, y - 4, 48, 8), border_radius=2)
+            pygame.draw.polygon(self.screen, _shade(c, 1.6), [(x - 4, y - 12), (x + 4, y - 12), (x, y + 16)])
+            # Crest / Horns according to tier
+            if tier >= 5:
+                pts_crest = [(x, y - 52), (x - 12, y - 32), (x + 12, y - 32)]
+                pygame.draw.polygon(self.screen, _shade(c, 1.8), pts_crest)
+                pygame.draw.polygon(self.screen, (255, 255, 255), pts_crest, 1)
+            if tier >= 10:
+                # Crown gem / ornament
+                pygame.draw.circle(self.screen, (255, 220, 100), (x, y - 22), 6)
+                pygame.draw.circle(self.screen, (255, 255, 255), (x, y - 22), 6, 1)
+
         elif kind == "armor":
-            pts = [(x, y - 36), (x + 32, y - 14), (x + 26, y + 36), (x - 26, y + 36), (x - 32, y - 14)]
-            pygame.draw.polygon(self.screen, c, pts)
-            pygame.draw.polygon(self.screen, _shade(c, 1.4), pts, 3)
+            # Cuirass / Breastplate with layered pauldrons
+            pts_main = [(x, y - 42), (x + 36, y - 18), (x + 28, y + 38), (x - 28, y + 38), (x - 36, y - 18)]
+            pygame.draw.polygon(self.screen, _shade(c, 0.5), [(px + 2, py + 2) for px, py in pts_main])
+            pygame.draw.polygon(self.screen, c, pts_main)
+            pygame.draw.polygon(self.screen, _shade(c, 1.4), pts_main, 3)
+
+            # Pauldrons (epaulettes)
+            pygame.draw.circle(self.screen, _shade(c, 1.2), (x - 38, y - 16), 14)
+            pygame.draw.circle(self.screen, _shade(c, 1.2), (x + 38, y - 16), 14)
+            pygame.draw.circle(self.screen, _shade(c, 1.6), (x - 38, y - 16), 14, 2)
+            pygame.draw.circle(self.screen, _shade(c, 1.6), (x + 38, y - 16), 14, 2)
+
+            # Center emblem / ribbing
+            pygame.draw.line(self.screen, _shade(c, 1.6), (x, y - 32), (x, y + 28), 3)
+            for ry in (-10, 0, 10):
+                pygame.draw.line(self.screen, _shade(c, 1.3), (x - 18, y + ry), (x + 18, y + ry), 2)
+            if tier >= 8:
+                pygame.draw.polygon(self.screen, (255, 220, 100), [(x, y - 12), (x + 10, y), (x, y + 12), (x - 10, y)])
+
         elif kind == "aura":
-            t = pygame.time.get_ticks() / 500.0
-            for i in range(3):
-                ang = t + i * 2.094
-                px = x + math.cos(ang) * 40
-                py = y + math.sin(ang) * 24
-                pygame.draw.circle(self.screen, c, (int(px), int(py)), 8)
-            pygame.draw.circle(self.screen, c, (x, y), 16)
-            pygame.draw.circle(self.screen, _shade(c, 1.4), (x, y), 16, 2)
+            # Multiple rotating energy rings
+            for ring in range(2 + min(3, tier // 4)):
+                speed_mult = 1.0 if ring % 2 == 0 else -1.2
+                rad_x = 42 + ring * 10
+                rad_y = 22 + ring * 6
+                dots = 4 + ring
+                for i in range(dots):
+                    ang = t * speed_mult + i * math.tau / dots
+                    px = x + math.cos(ang) * rad_x
+                    py = y + math.sin(ang) * rad_y
+                    dot_r = 5 + ring
+                    pygame.draw.circle(self.screen, c, (int(px), int(py)), dot_r)
+                    pygame.draw.circle(self.screen, (255, 255, 255), (int(px), int(py)), max(1, dot_r - 2))
+            pygame.draw.circle(self.screen, c, (x, y), 18)
+            pygame.draw.circle(self.screen, (255, 255, 255), (x, y), 10)
+
         elif kind == "gauntlet":
-            pygame.draw.rect(self.screen, c, (x - 26, y - 6, 52, 40), border_radius=8)
+            # Articulated gauntlet with fingers & gem
+            pygame.draw.rect(self.screen, _shade(c, 0.5), (x - 28, y - 4, 56, 44), border_radius=8)
+            pygame.draw.rect(self.screen, c, (x - 30, y - 6, 60, 42), border_radius=8)
+            pygame.draw.rect(self.screen, _shade(c, 1.5), (x - 30, y - 6, 60, 42), 2, border_radius=8)
+            # Articulated finger plates
             for i in range(4):
-                fx = x - 26 + i * 13
-                pygame.draw.rect(self.screen, c, (fx, y - 30, 11, 28), border_radius=5)
-                pygame.draw.rect(self.screen, _shade(c, 1.4), (fx, y - 30, 11, 28), 1, border_radius=5)
-            pygame.draw.rect(self.screen, c, (x + 22, y - 2, 14, 26), border_radius=6)
-            pygame.draw.rect(self.screen, _shade(c, 0.6), (x - 26, y + 26, 52, 12), border_radius=3)
-            pygame.draw.rect(self.screen, _shade(c, 1.4), (x - 26, y - 6, 52, 40), 2, border_radius=8)
+                fx = x - 28 + i * 14
+                pygame.draw.rect(self.screen, _shade(c, 1.2), (fx, y - 34, 12, 30), border_radius=5)
+                pygame.draw.rect(self.screen, _shade(c, 1.7), (fx, y - 34, 12, 30), 1, border_radius=5)
+            # Thumb plate
+            pygame.draw.rect(self.screen, _shade(c, 1.1), (x + 24, y - 2, 16, 28), border_radius=6)
+            pygame.draw.rect(self.screen, _shade(c, 1.6), (x + 24, y - 2, 16, 28), 1, border_radius=6)
+            # Knuckle gem/runes
+            if tier >= 4:
+                for i in range(4):
+                    fx = x - 22 + i * 14
+                    pygame.draw.circle(self.screen, (255, 220, 110), (fx, y - 10), 3)
+
         elif kind == "amulet":
-            pulse = 0.85 + 0.15 * math.sin(pygame.time.get_ticks() / 400.0)
-            r = int(20 * pulse)
-            pygame.draw.line(self.screen, _shade(c, 0.6), (x, y - 50), (x, y - 22), 3)
-            pts = [(x, y - 22), (x + 22, y), (x, y + 26), (x - 22, y)]
+            pulse = 0.85 + 0.15 * math.sin(t * 3)
+            r = int(24 * pulse)
+            # Chain/Necklace
+            pygame.draw.arc(self.screen, _shade(c, 0.7), (x - 30, y - 56, 60, 40), math.pi, math.tau, 3)
+            # Faceted gem stone pendant
+            pts = [(x, y - 24), (x + r, y), (x, y + r + 6), (x - r, y)]
+            pygame.draw.polygon(self.screen, _shade(c, 0.5), [(px + 2, py + 2) for px, py in pts])
             pygame.draw.polygon(self.screen, c, pts)
-            pygame.draw.polygon(self.screen, _shade(c, 1.5), pts, 2)
-            pygame.draw.circle(self.screen, _shade(c, 1.6), (x, y), max(3, r // 3))
+            pygame.draw.polygon(self.screen, _shade(c, 1.6), pts, 2)
+            # Inner gem facet highlights
+            pts_inner = [(x, y - 12), (x + r // 2, y), (x, y + r // 2), (x - r // 2, y)]
+            pygame.draw.polygon(self.screen, (255, 255, 255), pts_inner, 1)
+
         elif kind == "companion":
             c = equip.color
-            pygame.draw.circle(self.screen, c, (x, y), 32)
-            pygame.draw.circle(self.screen, _shade(c, 1.4), (x, y), 32, 3)
-            pygame.draw.circle(self.screen, (255, 230, 120), (x, y - 8), 8)
+            pygame.draw.circle(self.screen, _shade(c, 0.5), (x + 2, y + 2), 34)
+            pygame.draw.circle(self.screen, c, (x, y), 34)
+            pygame.draw.circle(self.screen, _shade(c, 1.5), (x, y), 34, 3)
+            # Glowing core & eyes
+            pygame.draw.circle(self.screen, (255, 230, 120), (x - 10, y - 8), 5)
+            pygame.draw.circle(self.screen, (255, 230, 120), (x + 10, y - 8), 5)
+            pygame.draw.circle(self.screen, (255, 255, 255), (x - 10, y - 8), 2)
+            pygame.draw.circle(self.screen, (255, 255, 255), (x + 10, y - 8), 2)
+            # Mining lamp hat
+            pygame.draw.rect(self.screen, (60, 50, 40), (x - 20, y - 36, 40, 10), border_radius=3)
+            pygame.draw.circle(self.screen, (255, 220, 90), (x, y - 31), 6)
 
     def _draw_tab_stones(self, rect, stones):
         title = self.font.render("Pierres", True, (230, 225, 210))
@@ -1249,7 +1393,7 @@ class Renderer:
         pygame.draw.rect(self.screen, (110, 190, 255), (x, y, int(w * max(0.0, min(1.0, ratio))), h), border_radius=h // 2)
         pygame.draw.rect(self.screen, (120, 130, 160), (x, y, w, h), 1, border_radius=h // 2)
 
-    def _draw_tab_stats(self, rect, player, competitive_ai):
+    def _draw_tab_stats(self, rect, player, competitors=None):
         title = self.font.render("Statistiques", True, (230, 225, 210))
         self.screen.blit(title, (rect.x, rect.y))
         area = pygame.Rect(rect.x, rect.y + 34, rect.width, rect.bottom - rect.y - 34)
@@ -1279,7 +1423,6 @@ class Renderer:
             f"Composants : {player.inventory.total_components()} · Victoires de guerre : {player.inventory.war_wins}",
             f"Troupes : {crafting.army_totals(player.inventory)['count']} · Donjon : niv. {sum(player.inventory.tower.values())}",
             f"Bonus de minage des niveaux d'objets : +{player.items_level_bonus() * 100:.1f}%",
-            f"Niveau de compétence (IA) : {int(competitive_ai.player_rating)}",
         ]
         for line in lines:
             for sub in self._wrap_text(line, self.font_small, rect.width):

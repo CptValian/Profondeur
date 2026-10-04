@@ -113,7 +113,7 @@ def save_exists(path=config.SAVE_PATH) -> bool:
     return os.path.exists(path)
 
 
-def save_game(player, stone_registry, artifact_catalog, competitive_ai, competitors=None, world=None,
+def save_game(player, stone_registry, artifact_catalog, competitors=None, world=None,
               ledger=None, path=config.SAVE_PATH, audio=None, faction_banks=None):
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     pdata = {
@@ -167,7 +167,6 @@ def save_game(player, stone_registry, artifact_catalog, competitive_ai, competit
         "world_dug": world.export_dug() if world is not None else {},
         "stones": stone_registry.to_dict(),
         "artifacts_found": list(artifact_catalog.found),
-        "player_rating": competitive_ai.player_rating,
         "competitors": [_ai_to_dict(ai) for ai in (competitors or [])],
         "audio_settings": {
             "music_enabled": audio.music_enabled if audio else True,
@@ -181,7 +180,7 @@ def save_game(player, stone_registry, artifact_catalog, competitive_ai, competit
     os.replace(tmp, path)
 
 
-def load_game(player, stone_registry, artifact_catalog, competitive_ai, competitors=None, world=None,
+def load_game(player, stone_registry, artifact_catalog, competitors=None, world=None,
               ledger=None, path=config.SAVE_PATH, audio=None, faction_banks=None):
     if not os.path.exists(path):
         return False
@@ -250,7 +249,6 @@ def load_game(player, stone_registry, artifact_catalog, competitive_ai, competit
     player.defeated_depth_bosses = set(data.get("defeated_depth_bosses", []))
     player.recompute_artifact_bonuses(artifact_catalog)
     player.health = min(player.health, player.max_health)
-    competitive_ai.player_rating = data.get("player_rating", 1000.0)
     if world is not None and "world_dug" in data:
         world.import_dug(data["world_dug"])
 
