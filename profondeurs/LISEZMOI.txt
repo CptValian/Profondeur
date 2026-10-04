@@ -1,0 +1,5 @@
+PROFONDEURS - le jeu du mineur
+Prérequis : Python 3 + pygame  (pip install pygame)
+Lancer    : python3 main.py
+Nouveautés : niveaux de mineur (1-30), défilement à la molette dans le panneau de droite,
+amélioration suprême du donjon, marché de composants.
