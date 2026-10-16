@@ -57,7 +57,7 @@ def _inv_extra_from_dict(inv, d):
 def _ai_to_dict(ai):
     d = {
         "name": ai.name,
-        "difficulty": ai.difficulty,
+        "elo": getattr(ai, "elo", config.DEFAULT_ELO),
         "tool": _eq_to_dict(ai.tool),
         "row": ai.state.row,
         "col": ai.state.col,
@@ -81,7 +81,10 @@ def _ai_to_dict(ai):
 
 
 def _ai_from_dict(ai, d, version=3):
-    ai.difficulty = d.get("difficulty", ai.difficulty)
+    ai.elo = d.get("elo", getattr(ai, "elo", config.DEFAULT_ELO))
+    mults = config.elo_to_multipliers(ai.elo)
+    ai.power_mult = mults["power_mult"]
+    ai.speed_mult = mults["speed_mult"]
     if "tool" in d:
         _eq_from_dict(ai.tool, d["tool"], config.TOOL_MAX_LEVEL)
     ai.state.row = d.get("row", ai.state.row)
@@ -282,7 +285,7 @@ def load_game(player, stone_registry, artifact_catalog, competitors=None, world=
 
 
 def peek_ai_difficulties(profile_names, path=config.SAVE_PATH):
-    """Relit uniquement les difficultés IA sauvegardées, pour préremplir le
+    """Relit uniquement les niveaux ELO IA sauvegardés, pour préremplir le
     menu sans avoir à recréer une partie complète."""
     if not os.path.exists(path):
         return None
@@ -291,7 +294,7 @@ def peek_ai_difficulties(profile_names, path=config.SAVE_PATH):
             data = json.load(f)
     except (json.JSONDecodeError, OSError):
         return None
-    saved_by_name = {c["name"]: c.get("difficulty") for c in data.get("competitors", [])}
+    saved_by_name = {c["name"]: c.get("elo") for c in data.get("competitors", [])}
     if not saved_by_name:
         return None
-    return [saved_by_name.get(name) or config.DEFAULT_DIFFICULTY for name in profile_names]
+    return [saved_by_name.get(name) if saved_by_name.get(name) is not None else config.DEFAULT_ELO for name in profile_names]

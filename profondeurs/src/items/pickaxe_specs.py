@@ -251,5 +251,27 @@ PICKAXE_SPECS = [
        ((255, 255, 255), (255, 245, 220), (210, 180, 140), (255, 255, 255)), GOLDH, "white", "winged", ["prism", "corona", "halo", "astrolabe"], glow=(255, 250, 210), gem=(255, 255, 255), fx="rainbow"),
     _p("Pioche Transcendante Ultime", "La perfection absolue de l'art du mineur, brillant d'un éclat d'éternité.",
        ((255, 255, 255), (255, 250, 240), (210, 190, 230), (255, 255, 255)), ((255, 255, 255), (245, 240, 250), (200, 190, 220)), "white", "winged", ["prism", "feathers", "halo", "corona", "astrolabe", "infinity", "inlay"], glow=(255, 255, 255), gem=(255, 255, 255), fx="rainbow", span=240),
+
+    # --- Paliers Suprêmes Supplémentaires (101 à 110) ---
+    _p("Pioche du Cœur d'Étoile", "Un fragment d'étoile vivante vibrant d'une énergie céleste inépuisable.",
+       ((255, 240, 200), (255, 190, 80), (200, 120, 30), (255, 255, 240)), GOLDH, "white", "crystal", ["stars", "corona"], glow=(255, 220, 100), gem=(255, 240, 180), fx="stars"),
+    _p("Pioche du Monolithe Absolu", "Massive et inébranlable, gravée de secrets immémoriaux.",
+       ((220, 225, 235), (160, 170, 185), (90, 100, 115), (245, 250, 255)), DKMETAL, "metal", "hammer", ["engrave", "spikes"], glow=(180, 200, 240), thick=92),
+    _p("Pioche de l'Éther Céleste", "Fluide comme l'air, tranchante comme le vide absolu.",
+       ((220, 245, 255), (140, 210, 250), (60, 140, 190), (245, 255, 255)), SILVER, "white", "winged", ["aurora", "feathers"], glow=(150, 230, 255), fx="sparkle"),
+    _p("Pioche du Rayon Primordial", "Projecte une lame de pur plasma fendant les strates géologiques.",
+       ((255, 255, 180), (255, 200, 50), (210, 120, 10), (255, 255, 220)), GOLDH, "gold", "winged", ["corona", "flames"], glow=(255, 220, 80), fx="embers"),
+    _p("Pioche de la Fracture Temporelle", "Déchire la trame du temps pour frapper avant même la volée.",
+       ((240, 210, 255), (170, 110, 230), (100, 50, 160), (250, 230, 255)), SILVER, "metal", "curved", ["gears", "astrolabe"], glow=(200, 150, 255), gem=(180, 230, 255), fx="sparkle"),
+    _p("Pioche du Souffle Titanique", "Provoque des ondes de choc dévastatrices à chaque impact.",
+       ((255, 210, 170), (230, 130, 70), (150, 70, 30), (255, 235, 200)), WOOD, "wood", "hammer", ["magma", "spikes"], glow=(240, 140, 60), fx="embers"),
+    _p("Pioche de la Nébuleuse d'Or", "Répand une poussière d'or cosmogonique dans toutes les galeries.",
+       ((255, 245, 180), (240, 195, 70), (170, 130, 20), (255, 255, 210)), GOLDH, "gold", "winged", ["nebula", "stars", "inlay"], glow=(255, 225, 120), gem=(255, 245, 190), fx="stars"),
+    _p("Pioche du Puits d'Éternité", "Ancrée dans la source de création infinie du monde souterrain.",
+       ((210, 250, 240), (110, 210, 190), (40, 130, 110), (235, 255, 250)), SILVER, "white", "crystal", ["infinity", "aurora"], glow=(130, 240, 210), fx="rainbow"),
+    _p("Pioche de l'Olympe Céleste", "Forgée par les titans de la lumière pour régner sur l'abîme.",
+       ((255, 255, 240), (250, 225, 140), (190, 155, 60), (255, 255, 250)), GOLDH, "white", "winged", ["feathers", "corona", "halo", "astrolabe"], glow=(255, 235, 150), gem=(255, 255, 255), fx="sparkle"),
+    _p("Pioche Infinitésimale Suprême", "L'apogée ultime du minage universel, résonnant à travers toutes les dimensions.",
+       ((255, 255, 255), (255, 255, 255), (220, 210, 240), (255, 255, 255)), ((255, 255, 255), (250, 245, 255), (210, 200, 230)), "white", "winged", ["prism", "feathers", "halo", "corona", "astrolabe", "infinity", "inlay"], glow=(255, 255, 255), gem=(255, 255, 255), fx="rainbow", span=250),
 ]
-assert len(PICKAXE_SPECS) == 100
+assert len(PICKAXE_SPECS) == 110

@@ -86,6 +86,10 @@ RECIPES = [
            70, 160, 14, 82, 30, 0.9, "Il frappe depuis l'ombre.", attack_type="physical", armor_type="light"),
     Recipe("star_guardian", "Gardien stellaire", "troop", {"star_fragment": 2, "abyssal_scale": 2, "rune_cord": 2},
            130, 300, 25, 55, 34, 1.1, "Une légende debout.", attack_type="magic", armor_type="magical"),
+    Recipe("stone_healer", "Soigneur de roche", "troop", {"raw_crystal": 2, "bone_shard": 3},
+           12, 35, 2, 55, 180, 1.5, "Soigne les alliés blessés en arrière-garde.", attack_type="heal", armor_type="light"),
+    Recipe("shield_weaver", "Mage de bouclier", "troop", {"rune_cord": 2, "tanned_hide": 2},
+           8, 50, 4, 50, 160, 2.0, "Octroie un bouclier protecteur absorbant aux alliés.", attack_type="shield", armor_type="magical"),
 ]
 RECIPES_BY_ID = {r.recipe_id: r for r in RECIPES}
 
