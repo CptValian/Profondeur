@@ -130,6 +130,37 @@ ARTIFACT_CATALOG_DEFS: List[ArtifactDef] = [
     ArtifactDef("gambler_nugget", "Pépite du joueur", "Épique", 480,
                 "Une face lisse, une face rugueuse. Elle retombe toujours du bon côté.",
                 "Un bloc sur 10 rapporte x4 d'or (jackpot)", "jackpot", 1),
+    # ---- 10 Nouveaux Artefacts ----
+    ArtifactDef("subterranean_fossil", "Fossile subalterne", "Commune", 50,
+                "L'empreinte d'une créature fossilisée depuis des millénaires.",
+                "+12 points de vie max", "max_health", 12),
+    ArtifactDef("glowing_mushroom", "Mycélium incandescent", "Peu commune", 85,
+                "Il diffuse une lueur rassurante dans les galeries les plus sombres.",
+                "+8% de puissance de minage", "mining_power_pct", 0.08),
+    ArtifactDef("iron_scale", "Écaille de dragon d'acier", "Peu commune", 130,
+                "Arrachée à la cuirasse d'un monstre enfoui.",
+                "+12 dégâts contre les monstres", "combat_damage", 12),
+    ArtifactDef("drill_core", "Engrenage de la foreuse oubliée", "Rare", 270,
+                "Un rouage en laiton gravé d'anciens algorithmes de forage.",
+                "+10 puissance de minage", "mining_power", 10),
+    ArtifactDef("shadow_pendant", "Pendentif des ténèbres", "Rare", 330,
+                "Une pierre d'améthyste sombre absorbant l'impact des secousses.",
+                "+12% de réduction des dégâts", "damage_reduction", 0.12),
+    ArtifactDef("sunken_crown", "Couronne des cités enfouies", "Épique", 360,
+                "Rongée par le sel et l'humidité, mais étincelante de joyaux.",
+                "+25% d'or gagné", "gold_pct", 0.25),
+    ArtifactDef("magma_vessel", "Vase de magma condensé", "Épique", 640,
+                "Contient une lave pure qui dégage une chaleur intarissable.",
+                "+25% de puissance de minage", "mining_power_pct", 0.25),
+    ArtifactDef("starlight_gem", "Saphir des constellations", "Légendaire", 850,
+                "Sa réfraction attire les minéraux précieux comme un aimant.",
+                "+30% de chance de trouver des composants", "component_luck", 0.30),
+    ArtifactDef("chthonic_tome", "Grimoire chthonien", "Légendaire", 1050,
+                "Livre de pierre gravé d'incantations oubliées des mineurs anciens.",
+                "+30 puissance de minage, +50 PV max", "combo_chthonic", 0),
+    ArtifactDef("abyssal_mirror", "Miroir des abîmes", "Mythique", 2100,
+                "Reflète la richesse cachée sous les couches de roche les plus denses.",
+                "+50% puissance de minage, +30% or", "combo_abyssal", 0),
 ]
 
 
@@ -142,6 +173,10 @@ def artifact_effects(adef) -> dict:
         return {"damage_reduction": 0.35, "gold_pct": 0.30}
     if bt == "combo_mountain":
         return {"mining_power_pct": 0.40, "combat_damage": 40}
+    if bt == "combo_chthonic":
+        return {"mining_power": 30, "max_health": 50}
+    if bt == "combo_abyssal":
+        return {"mining_power_pct": 0.50, "gold_pct": 0.30}
     return {bt: v} if bt else {}
 
 

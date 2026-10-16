@@ -83,7 +83,7 @@ LEVEL_UNLOCK_TEXT = {
     27: "+1 dégât par coup",
     28: "+4% de chance d'artefact inédit (permanent)",
     29: "XP de la pioche x1,1 (permanent)",
-    30: "Amélioration suprême du donjon",
+    30: "Amélioration suprême du donjon · Option pour ignorer les monstres",
 }
 
 # --- Outils (pioches) ---

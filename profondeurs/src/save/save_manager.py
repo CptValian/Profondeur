@@ -159,6 +159,7 @@ def save_game(player, stone_registry, artifact_catalog, competitors=None, world=
         },
         "level": player.level,
         "xp": player.xp,
+        "skip_monsters": getattr(player, "skip_monsters", False),
     }
     pdata.update(_inv_extra_to_dict(player.inventory))
     data = {
@@ -239,6 +240,7 @@ def load_game(player, stone_registry, artifact_catalog, competitors=None, world=
         player.xp = p.get("xp", 0.0)
     else:   # ancienne sauvegarde : niveau déduit de l'XP déjà accumulée par les objets
         player.set_total_xp(sum(it.total_xp() for it in (player.tool,) + player.equipment_items()))
+    player.skip_monsters = p.get("skip_monsters", False)
     player.pending_levels = []
     player.refresh_unlocks()
 

@@ -264,6 +264,76 @@ class TestGameFeatures(unittest.TestCase):
     def test_monster_spawn_rate_reduced(self):
         self.assertAlmostEqual(config.MONSTER_SPAWN_CHANCE, 0.04 / 3.0)
 
+    def test_10_new_artifacts(self):
+        from src.items.artifact import ArtifactCatalog
+        cat = ArtifactCatalog()
+        self.assertEqual(len(cat.defs), 44)
+        new_ids = ["subterranean_fossil", "glowing_mushroom", "iron_scale", "drill_core",
+                   "shadow_pendant", "sunken_crown", "magma_vessel", "starlight_gem",
+                   "chthonic_tome", "abyssal_mirror"]
+        for aid in new_ids:
+            self.assertIn(aid, cat.defs)
+
+    def test_level_30_skip_monsters(self):
+        from main import Game
+        from src.save import save_manager
+        game = Game()
+        game.start_game(new=True)
+        self.assertFalse(game.player.skip_monsters)
+
+        game.player.level = 30
+        game.player.skip_monsters = True
+
+        adjacent_col = game.player.col - 1
+        block = game.world.get_block(0, adjacent_col)
+        block.contains_monster = True
+        block.is_empty = False
+
+        game.on_cell_pressed(0, adjacent_col)
+        self.assertFalse(block.contains_monster)
+        self.assertEqual(game.state, "exploring")
+
+        # Test persistence
+        game._save()
+        game.player.skip_monsters = False
+        save_manager.load_game(game.player, game.stones, game.artifacts)
+        self.assertTrue(game.player.skip_monsters)
+
+    def test_character_skins_tiers(self):
+        from src.ui.renderer import CHARACTER_SKINS
+        self.assertEqual(len(CHARACTER_SKINS), 11)
+        self.assertEqual(CHARACTER_SKINS[0]["name"], "Spectre des Abîmes")
+        self.assertEqual(CHARACTER_SKINS[10]["name"], "Dieu de la Mine")
+
+        p = Player()
+        p.level = 1
+        self.assertEqual(min(10, p.level // 3), 0)
+        p.level = 3
+        self.assertEqual(min(10, p.level // 3), 1)
+        p.level = 30
+        self.assertEqual(min(10, p.level // 3), 10)
+
+    def test_continuous_mining_attack_interval(self):
+        from main import Game
+        game = Game()
+        game.start_game(new=True)
+        interval = game._attack_interval(game.session_time)
+        game.last_hit_time = 0.0
+
+        # Facing an adjacent block, simulate continuous update hit #1
+        now = 100.0
+        adjacent_col = game.player.col - 1
+        game.held_dirs = [(0, -1)]
+        game.last_hit_time = 0.0
+        game._update_held_direction(now)
+        self.assertEqual(game.last_hit_time, now)
+        first_hit_time = game.last_hit_time
+
+        # Trying to hit again before interval passes should be blocked by time check
+        time_diff = game._attack_interval(first_hit_time) * 0.5
+        now = first_hit_time + time_diff
+        self.assertLess(now - game.last_hit_time, interval)
+
 
 if __name__ == "__main__":
     unittest.main()

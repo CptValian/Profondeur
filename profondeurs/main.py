@@ -430,12 +430,14 @@ class Game:
 
         if block.is_empty:
             self.try_move_zqsd(drow, dcol)
-            self.last_hit_time = 0.0
             return
 
         if block.contains_monster:
-            self.start_combat(block)
-            return
+            if self.player.level >= 30 and getattr(self.player, "skip_monsters", False):
+                block.contains_monster = False
+            else:
+                self.start_combat(block)
+                return
 
         self.is_mining_active = True
         if now - self.last_hit_time >= self._attack_interval(now):
@@ -462,11 +464,13 @@ class Game:
             if down_block.is_empty:
                 if self.try_move_zqsd(1, 0):
                     self.alt_dir = -self.alt_dir  # Inverse la direction une fois descendu
-                    self.last_hit_time = 0.0
             else:
                 if down_block.contains_monster:
-                    self.start_combat(down_block)
-                    return
+                    if self.player.level >= 30 and getattr(self.player, "skip_monsters", False):
+                        down_block.contains_monster = False
+                    else:
+                        self.start_combat(down_block)
+                        return
                 self.is_mining_active = True
                 if now - self.last_hit_time >= self._attack_interval(now):
                     self.last_hit_time = now
@@ -480,12 +484,14 @@ class Game:
         block = self.world.get_block(target_row, target_col)
         if block.is_empty:
             self.try_move_zqsd(0, self.alt_dir)
-            self.last_hit_time = 0.0
             return
 
         if block.contains_monster:
-            self.start_combat(block)
-            return
+            if self.player.level >= 30 and getattr(self.player, "skip_monsters", False):
+                block.contains_monster = False
+            else:
+                self.start_combat(block)
+                return
 
         self.is_mining_active = True
         if now - self.last_hit_time >= self._attack_interval(now):
@@ -509,11 +515,13 @@ class Game:
             return
 
         if block.contains_monster:
-            self.start_combat(block)
-            return
+            if self.player.level >= 30 and getattr(self.player, "skip_monsters", False):
+                block.contains_monster = False
+            else:
+                self.start_combat(block)
+                return
 
         self.mining_cell = (row, col)
-        self.last_hit_time = 0.0
 
     def _cell_center_px(self, row, col):
         r = self.renderer
@@ -1140,7 +1148,6 @@ class Game:
                         self.auto_alt_mining = False
                 if d not in self.held_dirs:
                     self.held_dirs.append(d)
-                self.last_hit_time = 0.0
             if self.state == GameState.COMBAT and event.key == pygame.K_f:
                 self.combat_flee()
 
@@ -1267,6 +1274,11 @@ class Game:
                     s = self.audio.toggle_sfx()
                     self.flash_message("Bruitages de pioche " + ("activés" if s else "désactivés"))
                     return
+                if key == "btn_toggle_skip_monsters":
+                    if self.player.level >= 30:
+                        self.player.skip_monsters = not getattr(self.player, "skip_monsters", False)
+                        self.flash_message("Rencontres de monstres " + ("ignorées dans la mine" if self.player.skip_monsters else "activées"))
+                    return
                 if key == "btn_recruit_builder" and self.state == GameState.EXPLORING:
                     cost = self.player.inventory.builder_cost()
                     if self.player.inventory.recruit_builder():
@@ -1346,12 +1358,14 @@ class Game:
 
         if block.is_empty:
             self.try_move_zqsd(drow, dcol)
-            self.last_hit_time = 0.0
             return
 
         if block.contains_monster:
-            self.start_combat(block)
-            return
+            if self.player.level >= 30 and getattr(self.player, "skip_monsters", False):
+                block.contains_monster = False
+            else:
+                self.start_combat(block)
+                return
 
         self.is_mining_active = True
         if now - self.last_hit_time >= self._attack_interval(now):
@@ -1453,14 +1467,23 @@ class Game:
                 self._update_alt_mining(now)
             elif self.auto_shift_dir:
                 self._update_auto_shift_dir(now)
-            elif self.mouse_down and self.mining_cell:
-                if self.hover_cell != self.mining_cell:
-                    self.mining_cell = None
-                else:
-                    self.is_mining_active = True
-                    if now - self.last_hit_time >= self._attack_interval(now):
-                        self.last_hit_time = now
-                        self.apply_hit(*self.mining_cell)
+            elif self.mouse_down:
+                target_cell = self.mining_cell or self.hover_cell
+                if target_cell and self._is_adjacent(*target_cell):
+                    block = self.world.get_block(*target_cell)
+                    if not block.is_empty:
+                        if block.contains_monster:
+                            if self.player.level >= 30 and getattr(self.player, "skip_monsters", False):
+                                block.contains_monster = False
+                            else:
+                                self.start_combat(block)
+                                target_cell = None
+                        if target_cell and not block.is_empty:
+                            self.mining_cell = target_cell
+                            self.is_mining_active = True
+                            if now - self.last_hit_time >= self._attack_interval(now):
+                                self.last_hit_time = now
+                                self.apply_hit(*target_cell)
             elif self.held_dirs:
                 self._update_held_direction(now)
 

@@ -28,6 +28,21 @@ def _clamp(c):
     return max(0, min(255, int(c)))
 
 
+CHARACTER_SKINS = [
+    {"name": "Spectre des Abîmes", "desc": "Niveau 1-2 · Corps décharné à demi-mort, teint blafard et yeux cernés."},
+    {"name": "Mineur Épuisé", "desc": "Niveau 3-5 · Visage cerné de poussière, marqué par le labeur infini."},
+    {"name": "Mineur Aguerri", "desc": "Niveau 6-8 · Teint plus hâlé, regard déterminé et bandeau de cuir."},
+    {"name": "Vétéran de Fer", "desc": "Niveau 9-11 · Calot de fer riveté protecteur face aux éboulements."},
+    {"name": "Forgeron de Bronze", "desc": "Niveau 12-14 · Heaume cuivré serti d'une ambre luisante."},
+    {"name": "Champion d'Acier", "desc": "Niveau 15-17 · Visière d'acier poli au cristal saphir flamboyant."},
+    {"name": "Seigneur de Mithril", "desc": "Niveau 18-20 · Diadème de mithril étincelant aux reflets argentés."},
+    {"name": "Monarque Abyssal", "desc": "Niveau 21-23 · Couronne d'obsidienne aux cornes de mana violette."},
+    {"name": "Titan des Profondeurs", "desc": "Niveau 24-26 · Casque d'or solaire ceint d'une auréole de braises."},
+    {"name": "Légende Céleste", "desc": "Niveau 27-29 · Diadème astral auréolé d'étincelles cosmiques."},
+    {"name": "Dieu de la Mine", "desc": "Niveau 30 · Souverain absolu des profondeurs enrobé de lumière divine."},
+]
+
+
 def _shade(color, factor):
     return tuple(_clamp(c * factor) for c in color)
 
@@ -426,14 +441,121 @@ class Renderer:
     def _draw_player(self, px, py, player, is_mining):
         self._draw_aura(px, py, player)
         pygame.draw.circle(self.screen, (40, 30, 20), (px + 3, py + 3 + 12), 15)  # ombre
-        pygame.draw.circle(self.screen, (255, 214, 150), (px, py), 15)
-        pygame.draw.circle(self.screen, (110, 70, 30), (px, py), 15, 2)
-        # yeux
-        pygame.draw.circle(self.screen, (30, 20, 15), (px - 5, py - 2), 2)
-        pygame.draw.circle(self.screen, (30, 20, 15), (px + 5, py - 2), 2)
+        self._draw_character_skin(px, py, player)
 
         swing = -35 + math.sin(pygame.time.get_ticks() / 75.0) * 42 if is_mining else -35
         self.draw_pickaxe(px + 10, py + 4, player.tool, scale=0.42, angle=swing, pivot="grip")
+
+    def _draw_character_skin(self, px, py, player, scale=1.0):
+        tier = min(10, player.level // 3)
+        now_t = pygame.time.get_ticks() / 1000.0
+        r = int(15 * scale)
+
+        if tier == 0:  # Spectre des Abîmes (Near dead)
+            pygame.draw.circle(self.screen, (120, 135, 120), (px, py), r)
+            pygame.draw.circle(self.screen, (60, 70, 60), (px, py), r, max(1, int(2 * scale)))
+            pygame.draw.circle(self.screen, (35, 40, 35), (px - int(5 * scale), py - int(2 * scale)), max(1, int(4 * scale)))
+            pygame.draw.circle(self.screen, (35, 40, 35), (px + int(5 * scale), py - int(2 * scale)), max(1, int(4 * scale)))
+            pygame.draw.circle(self.screen, (220, 60, 60), (px - int(5 * scale), py - int(2 * scale)), max(1, int(1.5 * scale)))
+            pygame.draw.circle(self.screen, (220, 60, 60), (px + int(5 * scale), py - int(2 * scale)), max(1, int(1.5 * scale)))
+            pygame.draw.line(self.screen, (70, 65, 55), (px - r + 2, py - int(6 * scale)), (px + r - 2, py - int(8 * scale)), max(1, int(3 * scale)))
+            pygame.draw.line(self.screen, (40, 35, 30), (px - int(2 * scale), py + int(3 * scale)), (px + int(3 * scale), py + int(7 * scale)), max(1, int(2 * scale)))
+
+        elif tier == 1:  # Mineur Épuisé
+            pygame.draw.circle(self.screen, (185, 170, 150), (px, py), r)
+            pygame.draw.circle(self.screen, (90, 70, 50), (px, py), r, max(1, int(2 * scale)))
+            pygame.draw.circle(self.screen, (100, 80, 70), (px - int(5 * scale), py - int(1 * scale)), max(1, int(3 * scale)))
+            pygame.draw.circle(self.screen, (100, 80, 70), (px + int(5 * scale), py - int(1 * scale)), max(1, int(3 * scale)))
+            pygame.draw.circle(self.screen, (35, 25, 20), (px - int(5 * scale), py - int(2 * scale)), max(1, int(2 * scale)))
+            pygame.draw.circle(self.screen, (35, 25, 20), (px + int(5 * scale), py - int(2 * scale)), max(1, int(2 * scale)))
+            pygame.draw.line(self.screen, (110, 85, 60), (px - r, py - int(7 * scale)), (px + r, py - int(7 * scale)), max(1, int(3 * scale)))
+
+        elif tier == 2:  # Mineur Aguerri
+            pygame.draw.circle(self.screen, (215, 175, 135), (px, py), r)
+            pygame.draw.circle(self.screen, (110, 70, 30), (px, py), r, max(1, int(2 * scale)))
+            pygame.draw.circle(self.screen, (30, 20, 15), (px - int(5 * scale), py - int(2 * scale)), max(1, int(2 * scale)))
+            pygame.draw.circle(self.screen, (30, 20, 15), (px + int(5 * scale), py - int(2 * scale)), max(1, int(2 * scale)))
+            pygame.draw.line(self.screen, (130, 75, 40), (px - r, py - int(7 * scale)), (px + r, py - int(7 * scale)), max(1, int(4 * scale)))
+            pygame.draw.circle(self.screen, (200, 180, 100), (px, py - int(7 * scale)), max(1, int(2 * scale)))
+
+        elif tier == 3:  # Vétéran de Fer
+            pygame.draw.circle(self.screen, (225, 185, 145), (px, py), r)
+            pygame.draw.circle(self.screen, (110, 70, 30), (px, py), r, max(1, int(2 * scale)))
+            pygame.draw.arc(self.screen, (170, 175, 185), (px - r, py - r, r * 2, r * 2), 0, math.pi, max(1, int(6 * scale)))
+            pygame.draw.circle(self.screen, (220, 225, 235), (px, py - r + int(2 * scale)), max(1, int(2.5 * scale)))
+            pygame.draw.circle(self.screen, (30, 20, 15), (px - int(5 * scale), py - int(2 * scale)), max(1, int(2 * scale)))
+            pygame.draw.circle(self.screen, (30, 20, 15), (px + int(5 * scale), py - int(2 * scale)), max(1, int(2 * scale)))
+
+        elif tier == 4:  # Forgeron de Bronze
+            pygame.draw.circle(self.screen, (230, 190, 150), (px, py), r)
+            pygame.draw.circle(self.screen, (110, 70, 30), (px, py), r, max(1, int(2 * scale)))
+            pygame.draw.arc(self.screen, (205, 130, 60), (px - r - 1, py - r - 1, r * 2 + 2, r * 2 + 2), 0, math.pi, max(1, int(7 * scale)))
+            pygame.draw.circle(self.screen, (255, 150, 40), (px, py - r + int(3 * scale)), max(1, int(3 * scale)))
+            pygame.draw.circle(self.screen, (30, 20, 15), (px - int(5 * scale), py - int(2 * scale)), max(1, int(2 * scale)))
+            pygame.draw.circle(self.screen, (30, 20, 15), (px + int(5 * scale), py - int(2 * scale)), max(1, int(2 * scale)))
+
+        elif tier == 5:  # Champion d'Acier
+            pygame.draw.circle(self.screen, (230, 190, 150), (px, py), r)
+            pygame.draw.arc(self.screen, (200, 210, 225), (px - r - 1, py - r - 1, r * 2 + 2, r * 2 + 2), 0, math.pi, max(1, int(8 * scale)))
+            pygame.draw.circle(self.screen, (80, 160, 255), (px, py - r + int(3 * scale)), max(1, int(3.5 * scale)))
+            pygame.draw.circle(self.screen, (100, 200, 255), (px - int(5 * scale), py - int(2 * scale)), max(1, int(2.5 * scale)))
+            pygame.draw.circle(self.screen, (100, 200, 255), (px + int(5 * scale), py - int(2 * scale)), max(1, int(2.5 * scale)))
+
+        elif tier == 6:  # Seigneur de Mithril
+            pygame.draw.circle(self.screen, (150, 220, 255), (px, py), int((r + 4) * scale), max(1, int(2 * scale)))
+            pygame.draw.circle(self.screen, (235, 195, 155), (px, py), r)
+            pts = [(px - int(12 * scale), py - int(4 * scale)), (px - int(8 * scale), py - int(14 * scale)),
+                   (px, py - int(8 * scale)), (px + int(8 * scale), py - int(14 * scale)), (px + int(12 * scale), py - int(4 * scale))]
+            pygame.draw.polygon(self.screen, (220, 240, 255), pts)
+            pygame.draw.polygon(self.screen, (160, 200, 240), pts, max(1, int(1.5 * scale)))
+            pygame.draw.circle(self.screen, (130, 230, 255), (px, py - int(10 * scale)), max(1, int(2.5 * scale)))
+            pygame.draw.circle(self.screen, (130, 230, 255), (px - int(5 * scale), py - int(2 * scale)), max(1, int(2.5 * scale)))
+            pygame.draw.circle(self.screen, (130, 230, 255), (px + int(5 * scale), py - int(2 * scale)), max(1, int(2.5 * scale)))
+
+        elif tier == 7:  # Monarque Abyssal
+            pygame.draw.circle(self.screen, (170, 90, 255), (px, py), int((r + 5) * scale), max(1, int(2 * scale)))
+            pygame.draw.circle(self.screen, (235, 195, 155), (px, py), r)
+            pts = [(px - int(14 * scale), py - int(2 * scale)), (px - int(10 * scale), py - int(16 * scale)),
+                   (px, py - int(10 * scale)), (px + int(10 * scale), py - int(16 * scale)), (px + int(14 * scale), py - int(2 * scale))]
+            pygame.draw.polygon(self.screen, (110, 50, 160), pts)
+            pygame.draw.polygon(self.screen, (230, 180, 50), pts, max(1, int(2 * scale)))
+            pygame.draw.circle(self.screen, (220, 130, 255), (px - int(5 * scale), py - int(2 * scale)), max(1, int(2.5 * scale)))
+            pygame.draw.circle(self.screen, (220, 130, 255), (px + int(5 * scale), py - int(2 * scale)), max(1, int(2.5 * scale)))
+
+        elif tier == 8:  # Titan des Profondeurs
+            pulse = math.sin(now_t * 5.0) * 2.0
+            pygame.draw.circle(self.screen, (255, 160, 40), (px, py), int((r + 6 + pulse) * scale), max(1, int(2 * scale)))
+            pygame.draw.circle(self.screen, (240, 200, 160), (px, py), r)
+            pts = [(px - int(14 * scale), py - int(2 * scale)), (px - int(10 * scale), py - int(17 * scale)),
+                   (px, py - int(11 * scale)), (px + int(10 * scale), py - int(17 * scale)), (px + int(14 * scale), py - int(2 * scale))]
+            pygame.draw.polygon(self.screen, (255, 205, 50), pts)
+            pygame.draw.polygon(self.screen, (255, 120, 30), pts, max(1, int(2 * scale)))
+            pygame.draw.circle(self.screen, (255, 100, 30), (px - int(5 * scale), py - int(2 * scale)), max(1, int(3 * scale)))
+            pygame.draw.circle(self.screen, (255, 100, 30), (px + int(5 * scale), py - int(2 * scale)), max(1, int(3 * scale)))
+
+        elif tier == 9:  # Légende Céleste
+            pulse = math.sin(now_t * 6.0) * 3.0
+            pygame.draw.circle(self.screen, (230, 130, 255), (px, py), int((r + 8 + pulse) * scale), max(1, int(2 * scale)))
+            pygame.draw.circle(self.screen, (245, 215, 180), (px, py), r)
+            pts = [(px - int(15 * scale), py - int(3 * scale)), (px - int(11 * scale), py - int(19 * scale)),
+                   (px, py - int(12 * scale)), (px + int(11 * scale), py - int(19 * scale)), (px + int(15 * scale), py - int(3 * scale))]
+            pygame.draw.polygon(self.screen, (255, 230, 160), pts)
+            pygame.draw.polygon(self.screen, (200, 100, 255), pts, max(1, int(2 * scale)))
+            pygame.draw.circle(self.screen, (255, 255, 255), (px - int(5 * scale), py - int(2 * scale)), max(1, int(3 * scale)))
+            pygame.draw.circle(self.screen, (255, 255, 255), (px + int(5 * scale), py - int(2 * scale)), max(1, int(3 * scale)))
+
+        elif tier == 10:  # Dieu de la Mine
+            pulse = math.sin(now_t * 7.0) * 3.5
+            pygame.draw.circle(self.screen, (255, 245, 180), (px, py), int((r + 12 + pulse) * scale), max(1, int(3 * scale)))
+            pygame.draw.circle(self.screen, (255, 215, 90), (px, py), int((r + 6) * scale), max(1, int(2 * scale)))
+            pygame.draw.circle(self.screen, (255, 240, 210), (px, py), r)
+            pts = [(px - int(16 * scale), py - int(3 * scale)), (px - int(12 * scale), py - int(22 * scale)),
+                   (px, py - int(13 * scale)), (px + int(12 * scale), py - int(22 * scale)), (px + int(16 * scale), py - int(3 * scale))]
+            pygame.draw.polygon(self.screen, (255, 255, 220), pts)
+            pygame.draw.polygon(self.screen, (255, 215, 90), pts, max(1, int(2 * scale)))
+            pygame.draw.circle(self.screen, (255, 255, 255), (px, py - int(14 * scale)), max(1, int(4 * scale)))
+            pygame.draw.circle(self.screen, (255, 240, 120), (px - int(5 * scale), py - int(2 * scale)), max(1, int(3.5 * scale)))
+            pygame.draw.circle(self.screen, (255, 240, 120), (px + int(5 * scale), py - int(2 * scale)), max(1, int(3.5 * scale)))
 
     # ==================================================================
     # PIOCHE (sprite haute résolution mis en cache : voir pickaxe_art.py)
@@ -545,7 +667,7 @@ class Renderer:
         elif self.active_tab == "workshop":
             self._draw_tab_workshop(content, player)
         elif self.active_tab == "settings":
-            self._draw_tab_settings(content, getattr(self, "audio", None))
+            self._draw_tab_settings(content, getattr(self, "audio", None), player)
         elif self.active_tab == "stats":
             self._draw_tab_stats(content, player, competitors or [])
 
@@ -1366,8 +1488,8 @@ class Renderer:
                 y += 15
             y += 3
 
-    def _draw_tab_settings(self, rect, audio):
-        title = self.font.render("Réglages audio", True, (230, 225, 210))
+    def _draw_tab_settings(self, rect, audio, player=None):
+        title = self.font.render("Réglages audio & gameplay", True, (230, 225, 210))
         self.screen.blit(title, (rect.x, rect.y))
         y = rect.y + 40
 
@@ -1402,6 +1524,25 @@ class Renderer:
         for line in self._wrap_text(sub2, self.font_tiny, rect.width - 10):
             self.screen.blit(self.font_tiny.render(line, True, (150, 145, 165)), (rect.x, y)); y += 15
 
+        if player and player.level >= 30:
+            y += 25
+            t30 = self.font.render("Option Privilégiée (Niveau 30)", True, (255, 215, 90))
+            self.screen.blit(t30, (rect.x, y))
+            y += 35
+            skip_on = getattr(player, "skip_monsters", False)
+            btn_skip = pygame.Rect(rect.x, y, rect.width - 10, 44)
+            pygame.draw.rect(self.screen, (60, 110, 70) if skip_on else (50, 45, 55), btn_skip, border_radius=8)
+            pygame.draw.rect(self.screen, (255, 215, 90) if skip_on else (180, 180, 180), btn_skip, 1, border_radius=8)
+            label_skip = f"Ignorer les monstres dans la mine : {'OUI' if skip_on else 'NON'}"
+            txt_skip = self.font_small.render(label_skip, True, (240, 240, 240))
+            self.screen.blit(txt_skip, (btn_skip.centerx - txt_skip.get_width() // 2, btn_skip.centery - txt_skip.get_height() // 2))
+            self.rects["btn_toggle_skip_monsters"] = btn_skip
+            y += 50
+
+            sub3 = "Permet de miner directement les blocs hébergeant des monstres sans déclencher de combat."
+            for line in self._wrap_text(sub3, self.font_tiny, rect.width - 10):
+                self.screen.blit(self.font_tiny.render(line, True, (150, 145, 165)), (rect.x, y)); y += 15
+
     def _draw_player_xp_bar(self, x, y, w, h, player):
         pygame.draw.rect(self.screen, (34, 36, 50), (x, y, w, h), border_radius=h // 2)
         if player.level >= config.PLAYER_MAX_LEVEL:
@@ -1426,6 +1567,17 @@ class Renderer:
         else:
             xt = "Niveau maximum"
         self.screen.blit(self.font_tiny.render(xt, True, (150, 170, 200)), (rect.x, y)); y += 24
+
+        # Skin de personnage
+        s_tier = min(10, player.level // 3)
+        s_info = CHARACTER_SKINS[s_tier]
+        st_txt = self.font_small.render(f"Skin : {s_info['name']}", True, (255, 215, 90))
+        self.screen.blit(st_txt, (rect.x + 50, y + 6))
+        self._draw_character_skin(rect.x + 22, y + 16, player, scale=1.1)
+        y += 32
+        for line in self._wrap_text(s_info['desc'], self.font_tiny, rect.width - 10):
+            self.screen.blit(self.font_tiny.render(line, True, (200, 190, 170)), (rect.x, y)); y += 14
+        y += 10
 
         lines = [
             f"Profondeur actuelle : {player.row} m",

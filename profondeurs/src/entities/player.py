@@ -45,6 +45,7 @@ class Player:
         self.perks = defaultdict(float)   # effets uniques des artefacts (crit, jackpot, second souffle...)
         self.blocks_broken = 0
         self.alive = True
+        self.skip_monsters = False        # niveau 30 : option pour ignorer les combats de monstres
 
         for it in (self.tool,) + self.equipment_items():
             it.xp_listener = self.gain_player_xp
