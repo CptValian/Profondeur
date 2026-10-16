@@ -172,7 +172,7 @@ class StoneRegistry:
         )
 
     def discover(self, stone_id: str) -> bool:
-        stone = self._cache[stone_id]
+        stone = self.get_by_id(stone_id)
         if stone.discovered:
             return False
         stone.discovered = True

@@ -134,7 +134,7 @@ class AIState:
 class AIMiner:
     def __init__(self, name: str, color, team: int, risk_tolerance: float, upgrade_readiness: float,
                  artifact_focus: float, efficiency_variance: float, seed_offset: int,
-                 elo: int = 1500, ledger: StoneLedger = None):
+                 elo: int = 1500, ledger: StoneLedger = None, stones: StoneRegistry = None):
         self.name = name
         self.color = color
         self.team = team
@@ -149,7 +149,7 @@ class AIMiner:
 
         self.rng = random.Random(f"ai-{name}-{seed_offset}")
         self.ledger = ledger if ledger is not None else StoneLedger()
-        self.stones = StoneRegistry()    # même génération de pierres pour tous les mineurs
+        self.stones = stones if stones is not None else StoneRegistry()    # même génération de pierres pour tous les mineurs
         self.artifacts = ArtifactCatalog()
         self.world = WorldGenerator(self.stones, self.artifacts, seed=2000 + seed_offset)
         self.own_world = self.world
@@ -267,7 +267,7 @@ class AIMiner:
     def _try_upgrade(self):
         cost = self.tool.upgrade_cost()
         if cost >= 0:
-            threshold = cost * (1.01 if self.difficulty == "Extrême" else (1 + self.upgrade_readiness))
+            threshold = cost * (1.01 if getattr(self, "difficulty", "") == "Extrême" or getattr(self, "elo", 1500) >= 3000 else (1 + self.upgrade_readiness))
             if self.inventory.gold >= threshold or self.inventory.gold >= cost * 1.01:
                 if self.inventory.spend_gold(cost):
                     self.tool.upgrade()
@@ -487,7 +487,7 @@ class _FakePlayer:
         self._ai.state.health = max(0, self._ai.state.health - mitigated)
 
 
-def create_competitors(elos=None, ledger=None):
+def create_competitors(elos=None, ledger=None, stones=None):
     """
     elos : liste de 15 entiers ELO (0 à 3000), un par IA dans l'ordre d'AI_PROFILES.
     None => 1500 pour toutes.
@@ -500,6 +500,6 @@ def create_competitors(elos=None, ledger=None):
         competitors.append(AIMiner(
             p["name"], AI_COLORS[i], p["team"], p["risk_tolerance"], p["upgrade_readiness"],
             p["artifact_focus"], p["efficiency_variance"], i,
-            elo=elo, ledger=ledger,
+            elo=elo, ledger=ledger, stones=stones,
         ))
     return competitors
