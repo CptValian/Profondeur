@@ -342,14 +342,18 @@ class Renderer:
                 cy = self.grid_y + c_row_screen * size + size // 2
                 self._draw_companion_on_grid(cx, cy, player.companion)
 
-        # bots concourants (visibles uniquement lors de l'événement de la grille commune)
-        if competitors and getattr(self, "joint_grid_info", {}).get("active", False):
+        # bots concourants :
+        # - coéquipiers de l'Équipe 0 : toujours visibles sur la grille
+        # - tous les autres bots : visibles lors de l'événement de la grille commune
+        if competitors:
+            is_joint = getattr(self, "joint_grid_info", {}).get("active", False)
             for ai in competitors:
-                ai_row_screen = ai.state.row - top_row
-                if 0 <= ai_row_screen < self.visible_rows:
-                    aix = self.grid_x + ai.state.col * size + size // 2
-                    aiy = self.grid_y + ai_row_screen * size + size // 2
-                    self._draw_ai_miner_on_grid(aix, aiy, ai)
+                if ai.team == 0 or is_joint:
+                    ai_row_screen = ai.state.row - top_row
+                    if 0 <= ai_row_screen < self.visible_rows:
+                        aix = self.grid_x + ai.state.col * size + size // 2
+                        aiy = self.grid_y + ai_row_screen * size + size // 2
+                        self._draw_ai_miner_on_grid(aix, aiy, ai)
 
         # joueur
         p_row_screen = player.row - top_row
@@ -505,9 +509,9 @@ class Renderer:
         panel_rect = pygame.Rect(px, 0, self.panel_w, self.H)
         for y in range(0, self.H, 3):
             t = y / self.H
-            c = _lerp_color((24, 20, 30), (14, 12, 18), t)
+            c = _lerp_color((28, 24, 36), (16, 14, 22), t)
             pygame.draw.rect(self.screen, c, (px, y, self.panel_w, 3))
-        pygame.draw.line(self.screen, (90, 70, 110), (px, 0), (px, self.H), 2)
+        pygame.draw.line(self.screen, (110, 85, 140), (px, 0), (px, self.H), 2)
 
         tabs = [("tool", "Outil"), ("equip", "Équip."), ("stones", "Pierres"), ("artifacts", "Artef."),
                 ("competitors", "Rivaux"), ("workshop", "Atelier"), ("settings", "Options"), ("stats", "Stats")]
@@ -1655,19 +1659,14 @@ class Renderer:
         sub = self.font_small.render("Le jeu du mineur — 4 équipes de 4, toi compris", True, (190, 180, 200))
         self.screen.blit(sub, (self.W // 2 - sub.get_width() // 2, 78))
 
-        label_txt = ("Difficulté des 15 IA — verrouillée pour cette partie (choisie à son début)" if locked
-                     else "Difficulté individuelle des 15 IA (clique pour changer) :")
+        label_txt = ("Niveau ELO des 15 IA (0 à 3000) — verrouillé pour cette partie" if locked
+                     else "Niveau ELO individuel des 15 IA (0 à 3000) — Ajuste avec - / + :")
         label = self.font.render(label_txt, True, (220, 215, 205))
         self.screen.blit(label, (self.W // 2 - label.get_width() // 2, 108))
 
-        diff_color = {
-            "Facile": (90, 160, 100),
-            "Modéré": (110, 150, 120),
-            "Normal": (150, 140, 70),
-            "Avancé": (160, 100, 70),
-            "Difficile": (170, 70, 70),
-            "Extrême": (210, 40, 40),
-        }
+        def elo_color(elo):
+            r = min(1.0, max(0.0, elo / 3000.0))
+            return _lerp_color((90, 180, 100), (230, 60, 60), r)
 
         # regroupement par équipe, 4 colonnes
         cols = 4
@@ -1690,17 +1689,31 @@ class Renderer:
                 y += 24
             for i in indices:
                 p = AI_PROFILES[i]
-                d = ai_difficulties[i]
+                elo = ai_difficulties[i]
                 r = pygame.Rect(cx + 8, y, col_w - 16, 30)
                 pygame.draw.rect(self.screen, (30, 26, 38), r, border_radius=6)
                 pygame.draw.circle(self.screen, AI_COLORS[i], (r.x + 14, r.centery), 6)
                 name_txt = self.font_tiny.render(p["name"], True, (220, 215, 205))
                 self.screen.blit(name_txt, (r.x + 26, r.centery - name_txt.get_height() // 2))
-                dc = diff_color[d]
+
+                dc = elo_color(elo)
                 if locked:
                     dc = tuple(int(c * 0.7) for c in dc)
-                d_txt = self.font_tiny.render(d, True, dc)
-                self.screen.blit(d_txt, (r.right - d_txt.get_width() - 8, r.centery - d_txt.get_height() // 2))
+                d_txt = self.font_tiny.render(f"ELO {elo}", True, dc)
+                self.screen.blit(d_txt, (r.right - d_txt.get_width() - 48, r.centery - d_txt.get_height() // 2))
+
+                if not locked:
+                    btn_m = pygame.Rect(r.right - 42, r.y + 4, 18, 22)
+                    btn_p = pygame.Rect(r.right - 22, r.y + 4, 18, 22)
+                    pygame.draw.rect(self.screen, (50, 45, 60), btn_m, border_radius=3)
+                    pygame.draw.rect(self.screen, (50, 45, 60), btn_p, border_radius=3)
+                    tm = self.font_tiny.render("-", True, (255, 255, 255))
+                    tp = self.font_tiny.render("+", True, (255, 255, 255))
+                    self.screen.blit(tm, (btn_m.centerx - tm.get_width() // 2, btn_m.centery - tm.get_height() // 2))
+                    self.screen.blit(tp, (btn_p.centerx - tp.get_width() // 2, btn_p.centery - tp.get_height() // 2))
+                    self.rects[f"aidiff_minus_{i}"] = btn_m
+                    self.rects[f"aidiff_plus_{i}"] = btn_p
+
                 self.rects[f"aidiff_{i}"] = r
                 y += 34
 
@@ -1714,21 +1727,21 @@ class Renderer:
                 self.screen.blit(t, (r.centerx - t.get_width() // 2, r.centery - t.get_height() // 2))
                 self.rects[key] = r
         else:
-            quick_label = self.font_tiny.render("Réglage rapide :", True, (170, 165, 180))
+            quick_label = self.font_tiny.render("Réglage rapide ELO :", True, (170, 165, 180))
             self.screen.blit(quick_label, (self.W // 2 - 440, quick_y + 12))
-            qx = self.W // 2 - 330
-            for key, label, color in (("diff_all_facile", "Tout Facile", (90, 160, 100)),
-                                       ("diff_all_modere", "Tout Modéré", (110, 150, 120)),
-                                       ("diff_all_normal", "Tout Normal", (150, 140, 70)),
-                                       ("diff_all_avance", "Tout Avancé", (160, 100, 70)),
-                                       ("diff_all_difficile", "Tout Difficile", (170, 70, 70)),
-                                       ("diff_all_extreme", "Tout Extrême", (210, 40, 40))):
-                r = pygame.Rect(qx, quick_y, 104, 30)
+            qx = self.W // 2 - 320
+            for key, label, color in (("diff_all_0", "ELO 0", (90, 160, 100)),
+                                       ("diff_all_1000", "ELO 1000", (110, 150, 120)),
+                                       ("diff_all_1500", "ELO 1500", (150, 140, 70)),
+                                       ("diff_all_2000", "ELO 2000", (160, 100, 70)),
+                                       ("diff_all_2500", "ELO 2500", (170, 70, 70)),
+                                       ("diff_all_3000", "ELO 3000", (210, 40, 40))):
+                r = pygame.Rect(qx, quick_y, 100, 30)
                 pygame.draw.rect(self.screen, color, r, border_radius=6)
                 t = self.font_tiny.render(label, True, (255, 255, 255))
                 self.screen.blit(t, (r.centerx - t.get_width() // 2, r.centery - t.get_height() // 2))
                 self.rects[key] = r
-                qx += 110
+                qx += 106
 
             btn_w = 340 if has_save else 260
             btn_start = pygame.Rect(self.W // 2 - btn_w // 2, quick_y + 50, btn_w, 54)

@@ -114,10 +114,10 @@ TOOL_UPGRADE_COST_GROWTH = 1.28   # la pioche a 40 paliers : une croissance plus
 # niveau par l'usage (XP), transcendante (1 à 100, conservée à travers les
 # achats de palier), qui offre un bonus continu et progressif.
 # --- Niveaux de pioche (transcendants : conservés à travers les achats) ---
-TOOL_MAX_LEVEL = 100
+TOOL_MAX_LEVEL = 1000
 TOOL_XP_BASE = 200            # XP pour passer du niveau 1 au niveau 2
 TOOL_XP_EXPONENT = 1.6        # XP requise = BASE * niveau ** EXPONENT
-TOOL_XP_PER_DAMAGE = 0.35     # XP gagnée par point de dégât infligé aux blocs
+TOOL_XP_PER_DAMAGE = 0.42     # XP gagnée par point de dégât infligé aux blocs (0.35 * 1.2)
 TOOL_LEVEL_POWER_BONUS = 0.035  # +3,5 % de dégâts par niveau
 TOOL_LEVEL_SPEED_BONUS = 0.008  # +0,8 % de cadence par niveau
 TOOL_LEVEL_FLAT_POWER_BONUS = 0.5 # +0,5 dégâts plats par niveau
@@ -389,7 +389,7 @@ WAR_AI_INTERVAL = 30.0        # les IA envisagent une attaque toutes les X secon
 WAR_WIN_SCORE = 25            # points de score par victoire (attaque réussie ou défense réussie)
 
 # --- Valeur des blocs : or et XP proportionnels à la difficulté (points de vie du bloc) ---
-GOLD_PER_BLOCK_HP = 0.364       # or moyen = HP de base du bloc x ce facteur (x1.3)
+GOLD_PER_BLOCK_HP = 0.4368      # or moyen = HP de base du bloc x ce facteur (0.364 * 1.2)
 BLOCK_VALUE_RANDOM = (0.7, 1.3)  # petit aléa autour de la moyenne (moyenne = 1)
 XP_BLOCK_RANDOM = (0.8, 1.2)
 
@@ -436,16 +436,22 @@ MONSTER_HIT_COOLDOWN = 0.12      # anti spam-clic côté joueur
 # --- Banque de Faction ---
 BANK_INTEREST_RATE = 0.00025  # 0.025% de l'or mis en banque généré par seconde pour CHAQUE joueur de la faction
 
-# --- Difficulté des IA concurrentes ---
-DIFFICULTIES = {
-    "Facile":    {"power_mult": 0.7, "speed_mult": 0.8, "risk_mult": 0.75},
-    "Modéré":    {"power_mult": 0.85, "speed_mult": 0.9, "risk_mult": 0.88},
-    "Normal":    {"power_mult": 1.0, "speed_mult": 1.0, "risk_mult": 1.0},
-    "Avancé":    {"power_mult": 1.18, "speed_mult": 1.12, "risk_mult": 1.12},
-    "Difficile": {"power_mult": 1.35, "speed_mult": 1.25, "risk_mult": 1.25},
-    "Extrême":   {"power_mult": 1.6, "speed_mult": 1.45, "risk_mult": 1.5},
-}
-DEFAULT_DIFFICULTY = "Normal"
+# --- Niveau ELO des IA concurrentes (0 à 3000) ---
+DEFAULT_ELO = 1500
+
+def elo_to_multipliers(elo: float):
+    """
+    Calcule les multiplicateurs de l'IA à partir de son niveau ELO (0 à 3000).
+    0 = plus facile que Facile (ex. power 0.5, speed 0.65, risk 0.5)
+    1500 = Normal (power 1.0, speed 1.0, risk 1.0)
+    3000 = plus fort qu'Extrême (ex. power 2.0, speed 1.7, risk 1.8)
+    """
+    elo = max(0.0, min(3000.0, float(elo)))
+    ratio = elo / 3000.0
+    power_mult = 0.5 + 1.5 * ratio      # 0 -> 0.5, 1500 -> 1.25 (1.0), 3000 -> 2.0
+    speed_mult = 0.65 + 1.05 * ratio    # 0 -> 0.65, 1500 -> 1.175 (1.0), 3000 -> 1.7
+    risk_mult = 0.5 + 1.3 * ratio       # 0 -> 0.5, 1500 -> 1.15 (1.0), 3000 -> 1.8
+    return {"power_mult": power_mult, "speed_mult": speed_mult, "risk_mult": risk_mult}
 
 # --- Équipes ---
 # 4 équipes de 4 : le joueur + 3 IA dans l'équipe 0, et 3 équipes 100% IA.

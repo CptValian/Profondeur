@@ -134,18 +134,18 @@ class AIState:
 class AIMiner:
     def __init__(self, name: str, color, team: int, risk_tolerance: float, upgrade_readiness: float,
                  artifact_focus: float, efficiency_variance: float, seed_offset: int,
-                 power_mult: float = 1.0, speed_mult: float = 1.0, risk_mult: float = 1.0,
-                 difficulty: str = "Normal", ledger: StoneLedger = None):
+                 elo: int = 1500, ledger: StoneLedger = None):
         self.name = name
         self.color = color
         self.team = team
-        self.difficulty = difficulty
-        self.risk_tolerance = min(1.0, risk_tolerance * risk_mult)
+        self.elo = elo
+        mults = config.elo_to_multipliers(elo)
+        self.power_mult = mults["power_mult"]
+        self.speed_mult = mults["speed_mult"]
+        self.risk_tolerance = min(1.0, risk_tolerance * mults["risk_mult"])
         self.upgrade_readiness = upgrade_readiness
         self.artifact_focus = artifact_focus
         self.efficiency_variance = efficiency_variance
-        self.power_mult = power_mult
-        self.speed_mult = speed_mult
 
         self.rng = random.Random(f"ai-{name}-{seed_offset}")
         self.ledger = ledger if ledger is not None else StoneLedger()
@@ -487,21 +487,19 @@ class _FakePlayer:
         self._ai.state.health = max(0, self._ai.state.health - mitigated)
 
 
-def create_competitors(difficulties=None, ledger=None):
+def create_competitors(elos=None, ledger=None):
     """
-    difficulties : liste de 15 chaînes ("Facile"/"Normal"/"Difficile"), une
-    par IA dans l'ordre d'AI_PROFILES. None => Normal pour toutes.
+    elos : liste de 15 entiers ELO (0 à 3000), un par IA dans l'ordre d'AI_PROFILES.
+    None => 1500 pour toutes.
     """
-    if difficulties is None:
-        difficulties = [config.DEFAULT_DIFFICULTY] * len(AI_PROFILES)
+    if elos is None:
+        elos = [config.DEFAULT_ELO] * len(AI_PROFILES)
     competitors = []
     for i, p in enumerate(AI_PROFILES):
-        diff = difficulties[i] if i < len(difficulties) else config.DEFAULT_DIFFICULTY
-        mult = config.DIFFICULTIES.get(diff, config.DIFFICULTIES[config.DEFAULT_DIFFICULTY])
+        elo = elos[i] if i < len(elos) else config.DEFAULT_ELO
         competitors.append(AIMiner(
             p["name"], AI_COLORS[i], p["team"], p["risk_tolerance"], p["upgrade_readiness"],
             p["artifact_focus"], p["efficiency_variance"], i,
-            power_mult=mult["power_mult"], speed_mult=mult["speed_mult"], risk_mult=mult["risk_mult"],
-            difficulty=diff, ledger=ledger,
+            elo=elo, ledger=ledger,
         ))
     return competitors

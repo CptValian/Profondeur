@@ -38,8 +38,8 @@ class TestGameFeatures(unittest.TestCase):
 
     def test_pickaxe_tiers_count(self):
         from src.items.pickaxe_specs import PICKAXE_SPECS
-        self.assertEqual(len(PICKAXE_SPECS), 100)
-        self.assertEqual(len(config.TOOL_TIERS), 100)
+        self.assertEqual(len(PICKAXE_SPECS), 110)
+        self.assertEqual(len(config.TOOL_TIERS), 110)
         self.assertAlmostEqual(config.TOOL_TIERS[10]["power"], 1.4)
         self.assertAlmostEqual(config.TOOL_TIERS[10]["speed"], 1.55)
 
@@ -131,8 +131,8 @@ class TestGameFeatures(unittest.TestCase):
             self.assertEqual(def_inv.tower_hp_permanent_bonus, 50.0)
 
     def test_mining_rewards(self):
-        self.assertAlmostEqual(config.GOLD_PER_BLOCK_HP, 0.364)
-        self.assertEqual(config.TOOL_XP_PER_DAMAGE, 0.35)
+        self.assertAlmostEqual(config.GOLD_PER_BLOCK_HP, 0.4368)
+        self.assertAlmostEqual(config.TOOL_XP_PER_DAMAGE, 0.42)
 
     def test_audio_manager_and_settings(self):
         from src.audio_manager import AudioManager
@@ -254,12 +254,12 @@ class TestGameFeatures(unittest.TestCase):
 
     def test_extreme_difficulty_ai(self):
         from src.ai.competitor import create_competitors
-        diffs = ["Extrême"] * 15
-        competitors = create_competitors(diffs)
+        elos = [3000] * 15
+        competitors = create_competitors(elos)
         ai = competitors[0]
-        self.assertEqual(ai.difficulty, "Extrême")
-        self.assertAlmostEqual(ai.power_mult, 1.6)
-        self.assertAlmostEqual(ai.speed_mult, 1.45)
+        self.assertEqual(ai.elo, 3000)
+        self.assertAlmostEqual(ai.power_mult, 2.0)
+        self.assertAlmostEqual(ai.speed_mult, 1.7)
 
     def test_monster_spawn_rate_reduced(self):
         self.assertAlmostEqual(config.MONSTER_SPAWN_CHANCE, 0.04 / 3.0)

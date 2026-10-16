@@ -40,7 +40,7 @@ SUPREME_PERIOD = 10.0             # renforts / pluie de flèches toutes les 10 s
 class Unit:
     __slots__ = ("uid", "side", "rid", "x", "lane", "hp", "max_hp", "atk", "defense", "range", "speed",
                  "interval", "cd", "alive", "state", "attack_t", "hurt_t", "dead_t", "is_tower", "is_hero", "ranged",
-                 "burn_t", "burn_dps", "summoned", "attack_type", "armor_type")
+                 "burn_t", "burn_dps", "summoned", "attack_type", "armor_type", "shield")
 
     def __init__(self, uid, side, rid, x, lane, rng):
         self.uid, self.side, self.rid, self.x, self.lane = uid, side, rid, x, lane
@@ -49,6 +49,7 @@ class Unit:
         self.burn_t = 0.0
         self.burn_dps = 0.0
         self.summoned = False
+        self.shield = 0.0
         if rid in crafting.RECIPES_BY_ID:
             r = crafting.RECIPES_BY_ID[rid]
             self.hp = self.max_hp = float(r.health)
@@ -131,11 +132,12 @@ class BattleSim:
             roster = []
             for rid, n in start.items():
                 roster += [rid] * n
-            # corps à corps devant, tireurs derrière
+            # corps à corps devant, tireurs et soignants derrière
             roster.sort(key=lambda r: crafting.RECIPES_BY_ID[r].range)
-            spacing = min(12.0, 250.0 / max(1, len(roster)))
+            # Supporte un très grand nombre d'unités en répartissant sur 7 lanes (-3 à 3) et un espacement adapté
+            spacing = max(1.5, min(10.0, 350.0 / max(1, len(roster))))
             for i, rid in enumerate(roster):
-                self.units.append(Unit(uid, side, rid, front + sign * i * spacing, (i % 3) - 1, self.rng))
+                self.units.append(Unit(uid, side, rid, front + sign * i * spacing, (i % 7) - 3, self.rng))
                 uid += 1
         t = Unit(uid, "def", "star_guardian", TOWER_X, 0, self.rng)     # gabarit ; remplacé ci-dessous
         t.rid, t.is_tower = "tower", True
@@ -228,10 +230,60 @@ class BattleSim:
         for u in atts + defs:
             if u.is_tower:
                 continue
+
+            allies = atts if u.side == "att" else defs
             enemies, keys = (d_sorted, d_keys) if u.side == "att" else (a_sorted, a_keys)
             tgt = self._nearest(enemies, keys, u.x)
-            dist = abs(tgt.x - u.x)
-            if dist <= u.range:
+            dist = abs(tgt.x - u.x) if tgt else 9999.0
+
+            # --- Unités de Soin ---
+            if u.attack_type == "heal":
+                # Cible l'allié le plus blessé à portée
+                wounded = [a for a in allies if a.alive and a.hp < a.max_hp and abs(a.x - u.x) <= u.range]
+                if wounded:
+                    target_ally = min(wounded, key=lambda a: a.hp / a.max_hp)
+                    u.state = "attack"
+                    u.cd -= dt
+                    if u.cd <= 0:
+                        u.cd += u.interval
+                        u.attack_t = self.time
+                        heal_amt = u.atk * 1.5
+                        target_ally.hp = min(target_ally.max_hp, target_ally.hp + heal_amt)
+                        if self.record:
+                            self.events.append(("heal", target_ally.x, u.side))
+                elif tgt and dist > u.range * 0.7:
+                    step = min(u.speed * dt, dist - u.range * 0.5)
+                    u.x += step if tgt.x > u.x else -step
+                    u.state = "move"
+                else:
+                    u.state = "idle"
+                continue
+
+            # --- Unités de Bouclier ---
+            if u.attack_type == "shield":
+                # Cible l'allié à portée avec le moins de bouclier
+                valid_allies = [a for a in allies if a.alive and abs(a.x - u.x) <= u.range]
+                if valid_allies:
+                    target_ally = min(valid_allies, key=lambda a: a.shield)
+                    u.state = "attack"
+                    u.cd -= dt
+                    if u.cd <= 0:
+                        u.cd += u.interval
+                        u.attack_t = self.time
+                        shield_amt = u.atk * 2.0
+                        target_ally.shield += shield_amt
+                        if self.record:
+                            self.events.append(("shield", target_ally.x, u.side))
+                elif tgt and dist > u.range * 0.7:
+                    step = min(u.speed * dt, dist - u.range * 0.5)
+                    u.x += step if tgt.x > u.x else -step
+                    u.state = "move"
+                else:
+                    u.state = "idle"
+                continue
+
+            # --- Unités de combat (mêlée et distance) ---
+            if tgt and dist <= u.range:
                 u.state = "attack"
                 u.cd -= dt
                 if u.cd <= 0:
@@ -242,7 +294,7 @@ class BattleSim:
                         self.projectiles.append(Projectile(u.x, tgt, u.atk, dur, False, u.side, 30.0, src_attack_type=u.attack_type))
                     else:
                         self._hit(tgt, u.atk, u.side, src_unit=u)
-            elif u.side == "att" or dist <= AGGRO:
+            elif tgt and (u.side == "att" or dist <= AGGRO):
                 step = min(u.speed * dt, dist - u.range + 0.5)
                 u.x += step if tgt.x > u.x else -step
                 u.state = "move"

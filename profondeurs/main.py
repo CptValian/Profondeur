@@ -68,7 +68,7 @@ class Game:
         self.text_input = TextInput()
 
         from src.ai.competitor import AI_PROFILES
-        self.ai_difficulties = [config.DEFAULT_DIFFICULTY] * len(AI_PROFILES)
+        self.ai_difficulties = [config.DEFAULT_ELO] * len(AI_PROFILES)
         saved_diffs = save_manager.peek_ai_difficulties([p["name"] for p in AI_PROFILES])
         if saved_diffs:
             self.ai_difficulties = saved_diffs
@@ -127,6 +127,17 @@ class Game:
         self.world = WorldGenerator(self.stones, self.artifacts)
         self.player = Player()
         self.competitors = create_competitors(self.ai_difficulties, self.ledger)
+
+        # Partage de grille par équipe :
+        # Équipe 0 partage le monde principal `self.world` (joueur + 3 coéquipiers IA).
+        # Équipes 1, 2, 3 ont chacune une grille partagée entre leurs 4 membres.
+        team_worlds = {0: self.world}
+        for ai in self.competitors:
+            if ai.team not in team_worlds:
+                team_worlds[ai.team] = WorldGenerator(self.stones, self.artifacts, seed=2000 + ai.team * 1000)
+            ai.world = team_worlds[ai.team]
+            ai.own_world = ai.world
+
         self.renderer.stones = self.stones
         self.renderer.ledger = self.ledger
         self.renderer.artifacts = self.artifacts
@@ -1160,26 +1171,26 @@ class Game:
         locked = self.has_save and not self.menu_new_game
         for key, rect in self.renderer.rects.items():
             if rect.collidepoint(pos):
-                if key.startswith(("aidiff_", "diff_all_")) and locked:
+                if (key.startswith("aidiff_") or key.startswith("diff_all_")) and locked:
                     return
-                if key.startswith("aidiff_"):
-                    idx = int(key[len("aidiff_"):])
-                    diffs = list(config.DIFFICULTIES.keys())
-                    cur = self.ai_difficulties[idx]
-                    nxt = diffs[(diffs.index(cur) + 1) % len(diffs)]
-                    self.ai_difficulties[idx] = nxt
-                elif key == "diff_all_facile":
-                    self.ai_difficulties = ["Facile"] * len(self.ai_difficulties)
-                elif key == "diff_all_modere":
-                    self.ai_difficulties = ["Modéré"] * len(self.ai_difficulties)
-                elif key == "diff_all_normal":
-                    self.ai_difficulties = ["Normal"] * len(self.ai_difficulties)
-                elif key == "diff_all_avance":
-                    self.ai_difficulties = ["Avancé"] * len(self.ai_difficulties)
-                elif key == "diff_all_difficile":
-                    self.ai_difficulties = ["Difficile"] * len(self.ai_difficulties)
-                elif key == "diff_all_extreme":
-                    self.ai_difficulties = ["Extrême"] * len(self.ai_difficulties)
+                if key.startswith("aidiff_plus_"):
+                    idx = int(key[len("aidiff_plus_"):])
+                    self.ai_difficulties[idx] = min(3000, self.ai_difficulties[idx] + 250)
+                elif key.startswith("aidiff_minus_"):
+                    idx = int(key[len("aidiff_minus_"):])
+                    self.ai_difficulties[idx] = max(0, self.ai_difficulties[idx] - 250)
+                elif key == "diff_all_0":
+                    self.ai_difficulties = [0] * len(self.ai_difficulties)
+                elif key == "diff_all_1000":
+                    self.ai_difficulties = [1000] * len(self.ai_difficulties)
+                elif key == "diff_all_1500":
+                    self.ai_difficulties = [1500] * len(self.ai_difficulties)
+                elif key == "diff_all_2000":
+                    self.ai_difficulties = [2000] * len(self.ai_difficulties)
+                elif key == "diff_all_2500":
+                    self.ai_difficulties = [2500] * len(self.ai_difficulties)
+                elif key == "diff_all_3000":
+                    self.ai_difficulties = [3000] * len(self.ai_difficulties)
                 elif key == "btn_continue":
                     self.start_game(new=False)
                 elif key == "btn_newgame":
