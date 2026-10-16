@@ -334,6 +334,21 @@ class TestGameFeatures(unittest.TestCase):
         now = first_hit_time + time_diff
         self.assertLess(now - game.last_hit_time, interval)
 
+    def test_ai_stone_discovery_and_simulation(self):
+        from main import Game
+        from src.world.stone_registry import StoneRegistry
+
+        reg = StoneRegistry()
+        # Test that discovering an uncached stone ID works without KeyError
+        self.assertTrue(reg.discover("s0"))
+        self.assertFalse(reg.discover("s0"))
+
+        game = Game()
+        game.start_game(new=True)
+        # Simulate running game updates for several iterations where AI miners break stones
+        for _ in range(100):
+            game.update()
+
 
 if __name__ == "__main__":
     unittest.main()

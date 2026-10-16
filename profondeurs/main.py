@@ -126,7 +126,7 @@ class Game:
         self.artifacts = ArtifactCatalog()
         self.world = WorldGenerator(self.stones, self.artifacts)
         self.player = Player()
-        self.competitors = create_competitors(self.ai_difficulties, self.ledger)
+        self.competitors = create_competitors(self.ai_difficulties, self.ledger, self.stones)
 
         # Partage de grille par équipe :
         # Équipe 0 partage le monde principal `self.world` (joueur + 3 coéquipiers IA).
