@@ -250,7 +250,7 @@ class AIMiner:
             if (row, col) == self.last_cell:
                 desirability -= 3.0
 
-            if self.difficulty == "Extrême":
+            if getattr(self, "elo", 1500) >= 2000 or getattr(self, "difficulty", "") == "Extrême":
                 if going_down:
                     desirability += 2.5
                 else:
